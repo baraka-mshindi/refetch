@@ -4,7 +4,7 @@ name: OpenSSF Scorecard
 # https://scorecard.dev/viewer/?uri=github.com/mshindi-labs/refetch
 on:
   schedule:
-    - cron: '30 2 * * 1'
+    - cron: "30 2 * * 1"
   push:
     branches: [main]
   workflow_dispatch:

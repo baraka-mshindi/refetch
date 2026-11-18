@@ -330,18 +330,18 @@ await api.get('/data', undefined, { retry: { attempts: 5, delay: exponentialBack
 | Option | Default | Meaning |
 |---|---|---|
 | `attempts` | – | total attempts including the first |
-| `delay` | `0` | base delay in ms, or `(attempt) => ms` (then `backoff`/`jitter`/`maxDelay` are not applied) |
-| `backoff` | `'fixed'` | `'linear'` multiplies by the attempt, `'exponential'` doubles per attempt |
-| `jitter` | `false` | full jitter in `[0, delay]` |
+| `delay` | unset | base delay in ms, or `(attempt) => ms` (then `backoff`/`jitter`/`maxDelay` are not applied). Unset means the default back-off: 300 ms doubling per attempt, full jitter, capped at 30 s |
+| `backoff` | `'fixed'` when `delay` is set | `'linear'` multiplies by the attempt, `'exponential'` doubles per attempt |
+| `jitter` | `false` when `delay` is set | full jitter in `[0, delay]` |
 | `maxDelay` | – | cap for computed delays |
 | `respectRetryAfter` | `true` | wait for `Retry-After` (seconds or HTTP-date) or `RateLimit-Reset` / `X-RateLimit-Reset` instead of the computed delay; never jittered |
 | `maxRetryAfter` | `60_000` | stop retrying when the server asks for longer than this (caps hostile or absurd `Retry-After` values) |
-| `methods` | all | only retry these methods (case-insensitive) |
-| `statusCodes` | see below | only retry these status codes; transport failures stay retryable |
+| `methods` | `GET` `HEAD` `PUT` `DELETE` `OPTIONS` `TRACE` `QUERY` | only retry these methods (case-insensitive) |
+| `statusCodes` | `408` `413` `429` `500` `502` `503` `504` | only retry these status codes; transport failures stay retryable |
 | `condition` | see below | full override: return `true` to retry |
 | `onRetry` | – | called before each delay with `(attempt, lastResponse, delayMs)` |
 
-**Default condition:** retry on any non-ok response except status codes 400, 401, 403, 404, 422 and parse failures. Cancelled requests, `totalTimeout` expiries and requests with a one-shot `ReadableStream` body are never retried. In v4 the defaults move to idempotent methods and an explicit status allow-list; set `methods` and `statusCodes` today to opt in.
+**Defaults are safe to leave on.** Only idempotent methods are retried, so a `POST` or `PATCH` is never sent twice unless you list it (`retry: { attempts: 3, methods: ['POST'] }`) or supply a `condition`. Only the statuses above are retried: a `404` or `501` will not improve on a second try. Parse failures, schema validation failures, oversized responses, cancelled requests, `totalTimeout` expiries and requests with a one-shot `ReadableStream` body are never retried. The lists are exported as `DEFAULT_RETRY_METHODS` and `DEFAULT_RETRY_STATUS_CODES`.
 
 Request interceptors run **once** before the retry loop. Response interceptors run **per attempt**.
 
@@ -782,6 +782,8 @@ Size: refetch's root entry is about 8 KB minified + gzip with every export inclu
 Where refetch differs by design: failures are returned as values with a discriminated `error.kind` instead of thrown, with throwing available per instance, per request or per call (`unwrap`). If you prefer exceptions everywhere and the smallest possible bundle, ky or up-fetch are good choices.
 
 ## Migration from v3
+
+**Retry defaults are stricter.** With `retry` enabled and nothing else configured, v3 retried every method on any failure except 400 / 401 / 403 / 404 / 422, immediately. v4 retries only `GET` `HEAD` `PUT` `DELETE` `OPTIONS` `TRACE` `QUERY`, only on 408 / 413 / 429 / 500 / 502 / 503 / 504 or a transport failure, and waits a jittered exponential back-off (300 ms base, 30 s cap). To keep the old behaviour for a call: `retry: { attempts: 3, delay: 0, methods: ['POST'], statusCodes: [...] }` or a `condition`. An explicit `delay` is still fixed and unjittered.
 
 **`ApiResponse<T>` is a discriminated union.** Reading code gets simpler: after `if (response.ok)`, `response.data` is `T` and after `else`, `response.error` exists, with no type guard. Two things can stop compiling:
 

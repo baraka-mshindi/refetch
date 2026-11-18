@@ -6,7 +6,13 @@ import type {
   RetryContext,
 } from './types.ts';
 
-const DEFAULT_NON_RETRYABLE = new Set([400, 401, 403, 404, 422]);
+/** Methods retried by default: the idempotent ones (RFC 9110) plus QUERY (RFC 10008). */
+export const DEFAULT_RETRY_METHODS = ['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE', 'QUERY'];
+/** Statuses retried by default: timeouts, rate limits and transient server failures. */
+export const DEFAULT_RETRY_STATUS_CODES = [408, 413, 429, 500, 502, 503, 504];
+/** Base and cap of the default back-off, used when no `delay` is configured. */
+const DEFAULT_DELAY = 300;
+const DEFAULT_MAX_DELAY = 30_000;
 /** Longest server-requested delay honoured by default; longer means "come back later". */
 export const DEFAULT_MAX_RETRY_AFTER = 60_000;
 /** setTimeout cannot schedule beyond this; larger values would fire immediately. */
@@ -26,13 +32,18 @@ function applyJitter(delay: number, jitter: boolean | undefined): number {
 
 /** Delay before the given 1-based retry attempt, from `delay`, `backoff`, `maxDelay` and `jitter`. */
 export function getRetryDelay(config: RetryConfig, attempt: number): number {
-  const base = config.delay ?? 0;
+  // With no `delay` configured the default is exponential back-off with full jitter:
+  // 300 ms, 600 ms, 1.2 s… capped at 30 s. Any explicit `delay` keeps a fixed, unjittered wait.
+  const unset = config.delay === undefined;
+  const base = config.delay ?? DEFAULT_DELAY;
   if (typeof base === 'function') return Math.min(MAX_DELAY, base(attempt));
+  const backoff = config.backoff ?? (unset ? 'exponential' : 'fixed');
   let delay = base;
-  if (config.backoff === 'linear') delay = base * attempt;
-  else if (config.backoff === 'exponential') delay = base * 2 ** (attempt - 1);
-  if (config.maxDelay !== undefined) delay = Math.min(delay, config.maxDelay);
-  return applyJitter(Math.min(MAX_DELAY, delay), config.jitter);
+  if (backoff === 'linear') delay = base * attempt;
+  else if (backoff === 'exponential') delay = base * 2 ** (attempt - 1);
+  const maxDelay = config.maxDelay ?? (unset ? DEFAULT_MAX_DELAY : undefined);
+  if (maxDelay !== undefined) delay = Math.min(delay, maxDelay);
+  return applyJitter(Math.min(MAX_DELAY, delay), config.jitter ?? unset);
 }
 
 /** A `delay` function: `base * factor^(attempt - 1)` capped at `max`, optionally jittered. */
@@ -99,14 +110,11 @@ export function shouldRetry(
   if (errorKind(response) === 'parse') return false;
 
   const method = context.method?.toUpperCase();
-  if (config.methods && method && !config.methods.some((m) => m.toUpperCase() === method)) {
-    return false;
-  }
-  if (response.status) {
-    if (config.statusCodes) return config.statusCodes.includes(response.status);
-    if (DEFAULT_NON_RETRYABLE.has(response.status)) return false;
-  }
-  return true;
+  const methods = config.methods ?? DEFAULT_RETRY_METHODS;
+  if (method && !methods.some((m) => m.toUpperCase() === method)) return false;
+  // Transport failures have no status and stay retryable.
+  if (!response.status) return true;
+  return (config.statusCodes ?? DEFAULT_RETRY_STATUS_CODES).includes(response.status);
 }
 
 /** Resolves after `ms`; rejects with `signal.reason` as soon as `signal` aborts. */

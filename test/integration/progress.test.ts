@@ -182,7 +182,7 @@ describe('onUploadProgress', () => {
     const { callback } = recorder();
     const response = asError(
       await api.post('/status/503', payload, {
-        retry: { attempts: 2, delay: 1 },
+        retry: { attempts: 2, delay: 1, methods: ['POST'] },
         onUploadProgress: callback,
       }),
     );

@@ -131,7 +131,7 @@ do {
 } while (retryConfig && attempt < retryConfig.attempts && shouldRetry(lastResponse, retryConfig))
 ```
 
-Default non-retryable status codes: `{400, 401, 403, 404, 422}`; `statusCodes` replaces that set with an allow-list, `methods` restricts by HTTP method, `condition` overrides everything except cancels and total-timeout expiries. Delays: `delay` × `backoff` (`fixed` | `linear` | `exponential`) capped by `maxDelay`, optionally jittered; `exponentialBackoff()` builds a `delay` function. Phase B (#11, v4) changes the defaults to idempotent methods and an explicit status list.
+Defaults (v4): only `DEFAULT_RETRY_METHODS` (GET, HEAD, PUT, DELETE, OPTIONS, TRACE, QUERY) and `DEFAULT_RETRY_STATUS_CODES` (408, 413, 429, 500, 502, 503, 504) are retried, plus transport failures of those methods; `methods` / `statusCodes` replace the lists, `condition` overrides both but never cancels, total-timeout expiries, validation failures or oversized responses. With no `delay` the wait is exponential from 300 ms with full jitter, capped at 30 s; an explicit `delay` is fixed and unjittered unless `backoff` / `jitter` say otherwise. `exponentialBackoff()` builds a `delay` function.
 
 ### Error Classification (`errors.ts`)
 

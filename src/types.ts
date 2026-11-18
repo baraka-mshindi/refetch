@@ -52,17 +52,20 @@ export type RefetchError =
 export interface RetryConfig {
   /** Total attempts including the first (minimum 1). */
   attempts: number;
-  /** Fixed delay in ms, or a function returning ms for each retry (1-based attempt number). */
+  /**
+   * Fixed delay in ms, or a function returning ms for each retry (1-based attempt number).
+   * When unset: exponential back-off from 300 ms with full jitter, capped at 30 s.
+   */
   delay?: number | ((attempt: number) => number);
   /**
-   * Return true to retry. Defaults to retrying on any non-ok response except
-   * 400/401/403/404/422 or a parse failure. Cancelled requests and total-timeout expiries are
-   * never retried, and requests whose body is a one-shot ReadableStream cannot be retried.
+   * Return true to retry; replaces the `methods` and `statusCodes` checks. Cancelled requests,
+   * total-timeout expiries, validation failures and oversized responses are never retried, and
+   * requests whose body is a one-shot ReadableStream cannot be retried.
    */
   condition?: (response: ApiResponse<unknown>) => boolean;
-  /** Grows the base `delay` per attempt. Ignored when `delay` is a function. Default `'fixed'`. */
+  /** Grows the base `delay` per attempt. Ignored when `delay` is a function. Default `'fixed'` when `delay` is set. */
   backoff?: 'fixed' | 'linear' | 'exponential';
-  /** Full jitter: each computed delay becomes a random value in [0, delay]. Default `false`. */
+  /** Full jitter: each computed delay becomes a random value in [0, delay]. Default `false` when `delay` is set. */
   jitter?: boolean;
   /** Upper bound in ms for computed delays. */
   maxDelay?: number;
@@ -70,9 +73,9 @@ export interface RetryConfig {
   respectRetryAfter?: boolean;
   /** Give up instead of waiting when the server asks for more than this many ms. Default 60 000. */
   maxRetryAfter?: number;
-  /** Only retry these HTTP methods (case-insensitive). Default: every method. */
+  /** Only retry these HTTP methods (case-insensitive). Default: GET, HEAD, PUT, DELETE, OPTIONS, TRACE, QUERY. */
   methods?: string[];
-  /** Only retry these status codes; transport failures stay retryable. Default: see `condition`. */
+  /** Only retry these status codes; transport failures stay retryable. Default: 408, 413, 429, 500, 502, 503, 504. */
   statusCodes?: number[];
   /** Called before each retry's delay with the 1-based attempt, the last response and the delay in ms. */
   onRetry?: (attempt: number, response: ApiResponse<unknown>, delay: number) => void;

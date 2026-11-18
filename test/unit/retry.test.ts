@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CancelError } from '../../src/errors';
 import {
+  DEFAULT_RETRY_METHODS,
+  DEFAULT_RETRY_STATUS_CODES,
   exponentialBackoff,
   getRetryDelay,
   normalizeRetryConfig,
@@ -45,8 +47,33 @@ describe('normalizeRetryConfig', () => {
 });
 
 describe('getRetryDelay', () => {
-  it('is 0 without a delay', () => {
-    expect(getRetryDelay({ attempts: 2 }, 1)).toBe(0);
+  it('defaults to exponential back-off with full jitter, capped at 30 s', () => {
+    const random = vi.spyOn(Math, 'random');
+    try {
+      random.mockReturnValue(1);
+      expect([1, 2, 3].map((attempt) => getRetryDelay({ attempts: 9 }, attempt))).toEqual([
+        300, 600, 1200,
+      ]);
+      expect(getRetryDelay({ attempts: 99 }, 20)).toBe(30_000);
+      random.mockReturnValue(0.5);
+      expect(getRetryDelay({ attempts: 9 }, 2)).toBe(300);
+      random.mockReturnValue(0);
+      expect(getRetryDelay({ attempts: 9 }, 3)).toBe(0);
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it('keeps an explicit delay fixed and unjittered', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.1);
+    try {
+      expect(
+        [1, 2, 3].map((attempt) => getRetryDelay({ attempts: 9, delay: 50 }, attempt)),
+      ).toEqual([50, 50, 50]);
+      expect(getRetryDelay({ attempts: 9, delay: 0 }, 2)).toBe(0);
+    } finally {
+      random.mockRestore();
+    }
   });
 
   it('returns fixed delays', () => {
@@ -253,5 +280,58 @@ describe('sleep', () => {
     const pending = sleep(10, controller.signal);
     await vi.advanceTimersByTimeAsync(10);
     await expect(pending).resolves.toBeUndefined();
+  });
+});
+
+describe('shouldRetry defaults (v4)', () => {
+  const config = { attempts: 3 };
+
+  it.each(['GET', 'HEAD', 'PUT', 'DELETE', 'OPTIONS', 'TRACE', 'QUERY', 'get'])(
+    'retries %s, which is idempotent',
+    (method) => {
+      expect(shouldRetry(failed(503), config, { method })).toBe(true);
+    },
+  );
+
+  it.each(['POST', 'PATCH', 'post'])('does not retry %s', (method) => {
+    expect(shouldRetry(failed(503), config, { method })).toBe(false);
+    // Not even a transport failure: the request may have reached the server.
+    expect(shouldRetry(failed(undefined), config, { method })).toBe(false);
+  });
+
+  it('retries POST again when it is listed in methods', () => {
+    expect(shouldRetry(failed(503), { attempts: 3, methods: ['POST'] }, { method: 'POST' })).toBe(
+      true,
+    );
+  });
+
+  it.each([408, 413, 429, 500, 502, 503, 504])('retries status %d', (status) => {
+    expect(shouldRetry(failed(status), config, { method: 'GET' })).toBe(true);
+  });
+
+  it.each([400, 401, 403, 404, 409, 422, 501, 505])('does not retry status %d', (status) => {
+    expect(shouldRetry(failed(status), config, { method: 'GET' })).toBe(false);
+  });
+
+  it('lets statusCodes replace the default list', () => {
+    const custom = { attempts: 3, statusCodes: [409] };
+    expect(shouldRetry(failed(409), custom, { method: 'GET' })).toBe(true);
+    expect(shouldRetry(failed(503), custom, { method: 'GET' })).toBe(false);
+  });
+
+  it('retries transport failures of idempotent requests and requests of unknown method', () => {
+    expect(shouldRetry(failed(undefined), config, { method: 'GET' })).toBe(true);
+    expect(shouldRetry(failed(503), config)).toBe(true);
+  });
+
+  it('lets condition override both lists', () => {
+    const always = { attempts: 3, condition: () => true };
+    expect(shouldRetry(failed(404), always, { method: 'POST' })).toBe(true);
+  });
+
+  it('exports the default lists', () => {
+    expect(DEFAULT_RETRY_METHODS).toContain('QUERY');
+    expect(DEFAULT_RETRY_METHODS).not.toContain('POST');
+    expect(DEFAULT_RETRY_STATUS_CODES).toEqual([408, 413, 429, 500, 502, 503, 504]);
   });
 });

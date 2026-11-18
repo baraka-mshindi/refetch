@@ -543,7 +543,8 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     params?: Record<string, unknown>,
     config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return request<T>('LINK', url, params, config);
+    // Like OPTIONS: a body method for `request`, so params travel in the config.
+    return request<T>('LINK', url, config?.data, { ...config, params });
   }
 
   function unlink<T = unknown>(
@@ -551,7 +552,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     params?: Record<string, unknown>,
     config?: RequestConfig,
   ): Promise<ApiResponse<T>> {
-    return request<T>('UNLINK', url, params, config);
+    return request<T>('UNLINK', url, config?.data, { ...config, params });
   }
 
   function query<TResponse = unknown, TBody = unknown>(

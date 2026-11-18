@@ -87,6 +87,24 @@ describe('query()', () => {
   });
 });
 
+describe.each(['link', 'unlink'] as const)('%s()', (verb) => {
+  it('sends its second argument as query params, not as a body (#62)', async () => {
+    const response = asOk(await api[verb]<EchoPayload>('/echo', { rel: 'tag' }));
+    expect(response.data.method).toBe(verb.toUpperCase());
+    expect(response.data.url).toBe('/echo?rel=tag');
+    expect(response.data.body).toBe('');
+    expect(response.data.headers['content-type']).toBeUndefined();
+  });
+
+  it('sends a body when config.data is given', async () => {
+    const response = asOk(
+      await api[verb]<EchoPayload>('/echo', { rel: 'tag' }, { data: { note: 'x' } }),
+    );
+    expect(response.data.url).toBe('/echo?rel=tag');
+    expect(response.data.body).toBe('{"note":"x"}');
+  });
+});
+
 describe('options()', () => {
   it('sends OPTIONS with params and no body', async () => {
     const response = asOk(await api.options<EchoPayload>('/echo', { probe: 1 }));

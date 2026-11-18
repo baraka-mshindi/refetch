@@ -567,7 +567,7 @@ function useCreateUser() {
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~6.3 KB gzip (v3.3.0, root entry) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~6.7 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

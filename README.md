@@ -767,7 +767,7 @@ How refetch compares with the other clients people choose in 2026. **Checked on 
 | Transport | native `fetch` | native `fetch` | native `fetch` | native `fetch` | native `fetch` | XHR / Node `http` (a `fetch` adapter exists) |
 | Runtime dependencies | 0 | 0 | 3 | 0 | 0 | 4 |
 | Module format | ESM + CJS | ESM only | ESM + CJS | ESM + CJS | ESM + CJS | ESM + CJS |
-| Node range (`engines`) | ≥ 20.19 | ≥ 22 | not declared | ≥ 18 | ≥ 22 | not declared |
+| Node range (`engines`) | ≥ 22 | ≥ 22 | not declared | ≥ 18 | ≥ 22 | not declared |
 | Failure model | result object; opt-in throw | throws `HTTPError` | throws `FetchError` | throws `ResponseError` | throws; per-status catchers | throws `AxiosError` |
 | Retry | built in, off by default | on by default (2, idempotent methods) | on by default (1, not POST / PUT / PATCH / DELETE) | built in, opt-in | middleware | not built in |
 | Honours `Retry-After` | yes | yes | not documented | not documented | not documented | n/a |
@@ -782,6 +782,8 @@ Size: refetch's root entry is about 8 KB minified + gzip with every export inclu
 Where refetch differs by design: failures are returned as values with a discriminated `error.kind` instead of thrown, with throwing available per instance, per request or per call (`unwrap`). If you prefer exceptions everywhere and the smallest possible bundle, ky or up-fetch are good choices.
 
 ## Migration from v3
+
+**Runtime baseline.** Node 22 or newer (`engines`; Node 20 reached end of life on 2026-04-30). In browsers and other runtimes `AbortSignal.any` is now required: Chrome / Edge 116, Firefox 124, Safari 17.4, Bun and Deno. The package still ships both ESM and CommonJS builds.
 
 **Retry defaults are stricter.** With `retry` enabled and nothing else configured, v3 retried every method on any failure except 400 / 401 / 403 / 404 / 422, immediately. v4 retries only `GET` `HEAD` `PUT` `DELETE` `OPTIONS` `TRACE` `QUERY`, only on 408 / 413 / 429 / 500 / 502 / 503 / 504 or a transport failure, and waits a jittered exponential back-off (300 ms base, 30 s cap). To keep the old behaviour for a call: `retry: { attempts: 3, delay: 0, methods: ['POST'], statusCodes: [...] }` or a `condition`. An explicit `delay` is still fixed and unjittered.
 

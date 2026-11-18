@@ -42,14 +42,13 @@ export interface AttemptSignal {
   readonly signal: AbortSignal;
   /** Stops the timeout timer while keeping the caller's signal linked. */
   clearTimeout(): void;
-  /** Stops the timer and detaches any listeners; call once the attempt has settled. */
+  /** Stops the timer; call once the attempt has settled. */
   dispose(): void;
 }
 
 /**
  * Builds one signal for a request attempt out of the caller's signal, optional extra
- * signals and a timeout. Uses `AbortSignal.any` where available and falls back to manual
- * listener forwarding (honouring already-aborted sources) elsewhere.
+ * signals and a timeout, combined with `AbortSignal.any`.
  */
 export function createAttemptSignal(options: AttemptSignalOptions = {}): AttemptSignal {
   const timeout = resolveTimeout(options.timeout);
@@ -70,32 +69,12 @@ export function createAttemptSignal(options: AttemptSignalOptions = {}): Attempt
     }
   };
 
-  const detach: Array<() => void> = [];
-  let signal: AbortSignal;
-  if (typeof AbortSignal.any === 'function') {
-    signal = AbortSignal.any(sources);
-  } else {
-    const controller = new AbortController();
-    for (const source of sources) {
-      if (source.aborted) {
-        controller.abort(source.reason);
-        break;
-      }
-      const onAbort = () => controller.abort(source.reason);
-      source.addEventListener('abort', onAbort, { once: true });
-      detach.push(() => source.removeEventListener('abort', onAbort));
-    }
-    signal = controller.signal;
-  }
+  const signal = AbortSignal.any(sources);
 
   return {
     signal,
     clearTimeout: clear,
-    dispose() {
-      clear();
-      for (const off of detach) off();
-      detach.length = 0;
-    },
+    dispose: clear,
   };
 }
 

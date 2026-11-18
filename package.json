@@ -125,7 +125,7 @@
     "provenance": true
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

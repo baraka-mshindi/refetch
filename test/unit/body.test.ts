@@ -18,7 +18,16 @@ describe('shouldHaveBody', () => {
     },
   );
 
-  it.todo('allows DELETE bodies when data is provided (#27)');
+  it('allows a DELETE body only when data is provided', () => {
+    expect(shouldHaveBody('DELETE', { ids: [1] })).toBe(true);
+    expect(shouldHaveBody('delete', '')).toBe(true);
+    expect(shouldHaveBody('DELETE', undefined)).toBe(false);
+  });
+
+  it('keeps GET and HEAD body-less whatever data is provided', () => {
+    expect(shouldHaveBody('GET', { a: 1 })).toBe(false);
+    expect(shouldHaveBody('HEAD', { a: 1 })).toBe(false);
+  });
 });
 
 describe('prepareRequestBody', () => {

@@ -52,6 +52,7 @@ export type {
   AsyncResponseTransform,
   BackoffOptions,
   BodyOptions,
+  HttpMethod,
   InterceptorHandler,
   InterceptorManager,
   Monitor,

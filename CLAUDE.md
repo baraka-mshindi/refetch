@@ -58,7 +58,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 
 1. HTTP method called (e.g., `api.get(url, params, config)`)
 2. Config merged: `{ ...state.config, ...requestConfig, url, method }`
-3. `shouldHaveBody` → assign `config.data` (body methods) or `config.params` (GET/HEAD/DELETE); `config.headers` is normalised to a lower-cased plain object with the instance headers merged in
+3. `shouldHaveBody(method)` → assign `config.data` (body methods) or `config.params` (GET/HEAD/DELETE); at send time `shouldHaveBody(method, config.data)` lets DELETE carry a body when `config.data` is set. `query()` sends `QUERY` with a body; `options()` passes params through the config because OPTIONS is a body method; `config.headers` is normalised to a lower-cased plain object with the instance headers merged in
 4. **Request interceptors applied (LIFO)** — return-based, run **once before any retry**; a throwing interceptor yields an error response (`UNKNOWN_ERROR` / `kind: 'unknown'`) instead of a rejection; returning `{ response }` short-circuits (no network call, `request.attempt === 0`, response interceptors and monitors still run)
 5. `normalizeRetryConfig` determines retry settings
 6. **Retry loop** (`do/while`):
@@ -151,6 +151,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- GET and HEAD never send a body; DELETE sends one only when `config.data` is set; there is no `trace()` because fetch forbids TRACE
 - `DEFAULT_HEADERS` has **only** `Accept` — never `Content-Type`
 - `RefetchError` is defined in `types.ts`; `buildRefetchError` is in `errors.ts`
 - When the parsed `data` is a `ReadableStream` (`responseType: 'stream'`, or SSE under `'auto'`), `executeSingleRequest` clears the attempt timeout but does not dispose the attempt or call signals, so the caller's abort still reaches the body; a failed request with `responseType: 'stream'` is parsed as `'auto'`

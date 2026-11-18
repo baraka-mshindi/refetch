@@ -1,9 +1,14 @@
 // Matches any MIME type ending in +json: application/vnd.api+json, application/ld+json, etc.
 const JSON_LIKE_RE = /^(application|text)\/.+\+json$/i;
 
-export function shouldHaveBody(method: string): boolean {
-  const noBodyMethods = ['GET', 'HEAD', 'DELETE'];
-  return !noBodyMethods.includes(method.toUpperCase());
+/**
+ * Whether a request with this method sends a body. GET and HEAD never do (fetch rejects
+ * them); DELETE does only when `data` is supplied; every other method does.
+ */
+export function shouldHaveBody(method: string, data?: unknown): boolean {
+  const upper = method.toUpperCase();
+  if (upper === 'DELETE') return data !== undefined;
+  return upper !== 'GET' && upper !== 'HEAD';
 }
 
 /**

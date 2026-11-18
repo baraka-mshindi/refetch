@@ -256,7 +256,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         config.params,
         config.paramsSerializer,
       );
-      const body = shouldHaveBody(method)
+      const body = shouldHaveBody(method, config.data)
         ? prepareRequestBody(config.data, config.stringifyJson)
         : undefined;
 
@@ -554,6 +554,23 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     return request<T>('UNLINK', url, params, config);
   }
 
+  function query<TResponse = unknown, TBody = unknown>(
+    url: string,
+    data?: TBody,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<TResponse>> {
+    return request<TResponse>('QUERY', url, data, config);
+  }
+
+  function options<T = unknown>(
+    url: string,
+    params?: QueryParams,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>> {
+    // OPTIONS is a body method for `request`, so params travel in the config.
+    return request<T>('OPTIONS', url, config?.data, { ...config, params });
+  }
+
   function any<T = unknown>(config: RequestConfig): Promise<ApiResponse<T>> {
     const method = config.method || 'GET';
     const url = config.url || '/';
@@ -772,6 +789,8 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     patch,
     delete: deleteRequest,
     head,
+    query,
+    options,
     link,
     unlink,
     any,

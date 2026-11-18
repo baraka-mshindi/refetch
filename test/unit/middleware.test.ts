@@ -47,10 +47,12 @@ describe('withHeaders', () => {
 });
 
 describe('withBaseURL', () => {
-  it('overrides the instance baseURL and returns the same instance', () => {
+  it('returns a derived instance with the new baseURL and leaves the original alone', () => {
     const api = create({ baseURL: 'https://a.test' });
-    expect(withBaseURL('https://b.test')(api)).toBe(api);
-    expect(api.getBaseURL()).toBe('https://b.test');
+    const moved = withBaseURL('https://b.test')(api);
+    expect(moved).not.toBe(api);
+    expect(moved.getBaseURL()).toBe('https://b.test');
+    expect(api.getBaseURL()).toBe('https://a.test');
   });
 });
 

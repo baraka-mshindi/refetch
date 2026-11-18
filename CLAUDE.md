@@ -147,7 +147,7 @@ Classification is by origin first (abort reason, `fetch()` throwing) and by mess
 
 ### Middleware HOFs (`middleware.ts`)
 
-Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They register interceptors and return the same instance. `pipe(value, ...fns)` reduces them left-to-right — the standard composition pattern.
+Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. It calls `instance.extend()`, registers its interceptors on the child and returns the child; the argument is never modified. `pipe(value, ...fns)` reduces them left-to-right — the standard composition pattern.
 
 ## Key Invariants
 
@@ -156,7 +156,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 - `ApiResponse<T>` is a union: never widen it back to an interface with `ok: boolean`. `normalizeSuccessResponse` returns `ApiOkResponse<T>`, `normalizeErrorResponse` returns `ApiErrorResponse`; `retry.ts` still tolerates hand-built error responses without `error` at runtime
 - Source must stay loadable by Node's type stripping: `erasableSyntaxOnly` is on (no enums, no parameter properties, no runtime namespaces) and relative imports in `src/` carry the `.ts` extension (`allowImportingTsExtensions`; tsdown rewrites them). `PROBLEM_CODE` is an `as const` object with a `ProblemCode` union
 - The docs site (`docs/`, VitePress) only includes `README.md`, `SECURITY.md` and `CHANGELOG.md`; write documentation in those files, not in `docs/`. The README comparison table is dated: re-check it against `npm view <pkg>` and each README before a minor release
-- `extend(overrides)` builds a new instance through `create()`: object overrides merge (headers via `mergeHeaders`, `retry` field by field, signals via `AbortSignal.any`), a function result replaces; interceptors and monitors are re-registered in insertion order, so no mutable state is shared. Middleware HOFs still mutate their argument until v4 (#56)
+- `extend(overrides)` builds a new instance through `create()`: object overrides merge (headers via `mergeHeaders`, `retry` field by field, signals via `AbortSignal.any`), a function result replaces; interceptors and monitors are re-registered in insertion order, so no mutable state is shared.
 - `observeBytes(stream, limit?, onBytes?)` in `response.ts` is the one byte counter: it enforces `maxResponseSize`, drives `onDownloadProgress`, and counts uploads. `reportProgress()` in `refetch.ts` adapts user callbacks and swallows (logs) their errors
 - Upload progress serialises the body through `new Response(body)` and streams the resulting Blob when `supportsRequestStreams()` and the request is not `keepalive` / `no-cors`; the multipart Content-Type is read from the Response **header**, never from `Blob.type` (lower-cased, which would corrupt the boundary). Otherwise the body is sent unchanged and one 100 % call is made after the response arrives
 - `withAuth` scopes the token to the base URL's origin by default (`AuthOptions.origins`: `'baseURL'` | `string[]` | `'any'`); it mirrors `buildUrl`'s absolute-URL test instead of importing it, to keep the `/middleware` entry small; without a base URL the default attaches everywhere

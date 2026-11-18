@@ -139,6 +139,8 @@ if (isErrorResponse(response)) {
 
 ### PROBLEM_CODE
 
+`PROBLEM_CODE` is a plain `as const` object (`PROBLEM_CODE.TIMEOUT_ERROR === 'TIMEOUT_ERROR'`), and `ProblemCode` is the union of its values, so string literals compare and assign directly.
+
 ```typescript
 import { PROBLEM_CODE } from '@mshindi-labs/refetch';
 
@@ -761,6 +763,10 @@ How refetch compares with the other clients people choose in 2026. **Checked on 
 Size: refetch's root entry is about 8 KB minified + gzip with every export included (measured by `size-limit` in CI; the `/stream`, `/retry` and `/middleware` sub-paths are under 1 KB each). The other libraries were not measured here; see each one on [Bundlephobia](https://bundlephobia.com). Several are smaller, wretch and up-fetch in particular.
 
 Where refetch differs by design: failures are returned as values with a discriminated `error.kind` instead of thrown, with throwing available per instance, per request or per call (`unwrap`). If you prefer exceptions everywhere and the smallest possible bundle, ky or up-fetch are good choices.
+
+## Migration from v3
+
+**`PROBLEM_CODE` is a const object, not an enum.** Runtime values are unchanged, so `response.problem === PROBLEM_CODE.CLIENT_ERROR` and `switch` statements keep working. For types, use the new `ProblemCode` union; `PROBLEM_CODE` still works as a type alias but is deprecated. The one thing that no longer compiles is an enum *member* used as a type (`let p: PROBLEM_CODE.CLIENT_ERROR`): write `typeof PROBLEM_CODE.CLIENT_ERROR` or `'CLIENT_ERROR'`.
 
 ## Migration from v2
 

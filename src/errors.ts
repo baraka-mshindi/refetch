@@ -1,12 +1,13 @@
-import { STATUS_RANGES } from './constants';
-import type { StandardSchemaV1 } from './schema';
+import { STATUS_RANGES } from './constants.ts';
+import type { StandardSchemaV1 } from './schema.ts';
 import {
   type ApiErrorResponse,
   type ApiResponse,
   PROBLEM_CODE,
+  type ProblemCode,
   type RefetchError,
   type ResolvedRequest,
-} from './types';
+} from './types.ts';
 
 export class CancelError extends Error {
   constructor(message?: string) {
@@ -135,7 +136,7 @@ function isSuccessStatus(status: number): boolean {
   return status >= STATUS_RANGES.SUCCESS_MIN && status <= STATUS_RANGES.SUCCESS_MAX;
 }
 
-export function classifyProblem(status?: number, error?: Error): PROBLEM_CODE {
+export function classifyProblem(status?: number, error?: Error): ProblemCode {
   if (error) {
     const name = error.name;
     const message = error.message?.toLowerCase() ?? '';
@@ -246,7 +247,7 @@ export class RefetchResponseError<T = unknown> extends Error {
   declare readonly request: ResolvedRequest | undefined;
   declare readonly headers: Record<string, string> | undefined;
   readonly kind: RefetchError['kind'];
-  readonly problem: PROBLEM_CODE;
+  readonly problem: ProblemCode;
   readonly status: number | undefined;
   /** The parsed error body, or the raw text when it could not be parsed. */
   readonly data: T | undefined;

@@ -1,5 +1,5 @@
-import { headersToObject, mergeHeaders, setRequestHeader } from './headers';
-import type { RefetchInstance, RequestConfig } from './types';
+import { headersToObject, mergeHeaders, setRequestHeader } from './headers.ts';
+import type { RefetchInstance, RequestConfig } from './types.ts';
 
 type InstanceMiddleware = (instance: RefetchInstance) => RefetchInstance;
 

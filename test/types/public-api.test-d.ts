@@ -8,6 +8,8 @@ import {
   isErrorResponse,
   isOkResponse,
   isRefetchError,
+  PROBLEM_CODE,
+  type ProblemCode,
   type Progress,
   type QueryParams,
   type RefetchConfig,
@@ -265,5 +267,27 @@ describe('public API types', () => {
     expectTypeOf(api.extend)
       .parameter(0)
       .toEqualTypeOf<RefetchConfig | ((parent: RefetchConfig) => RefetchConfig) | undefined>();
+  });
+
+  it('exposes PROBLEM_CODE as a const object with a ProblemCode union', () => {
+    expectTypeOf(PROBLEM_CODE.CLIENT_ERROR).toEqualTypeOf<'CLIENT_ERROR'>();
+    expectTypeOf<ProblemCode>().toEqualTypeOf<
+      | 'NONE'
+      | 'CLIENT_ERROR'
+      | 'SERVER_ERROR'
+      | 'TIMEOUT_ERROR'
+      | 'CONNECTION_ERROR'
+      | 'NETWORK_ERROR'
+      | 'CANCEL_ERROR'
+      | 'PARSE_ERROR'
+      | 'VALIDATION_ERROR'
+      | 'RESPONSE_TOO_LARGE'
+      | 'UNKNOWN_ERROR'
+    >();
+    // The old type position still works, and plain string literals are now assignable.
+    expectTypeOf<PROBLEM_CODE>().toEqualTypeOf<ProblemCode>();
+    const problem: PROBLEM_CODE = 'TIMEOUT_ERROR';
+    expectTypeOf(problem).toExtend<ProblemCode>();
+    expectTypeOf<ApiErrorResponse<unknown>['problem']>().toEqualTypeOf<ProblemCode>();
   });
 });

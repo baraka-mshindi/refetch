@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   create,
@@ -425,4 +426,18 @@ describe('error responses', () => {
     expect(result.originalError).toBeInstanceOf(TypeError);
     expect((result.originalError as NetworkError).code).toBe('ECONNREFUSED');
   });
+});
+
+describe('source files', () => {
+  const [major = 0, minor = 0] = process.versions.node.split('.').map(Number);
+
+  // Type stripping is on by default from Node 22.18 / 23.6.
+  it.skipIf(major < 22 || (major === 22 && minor < 18))(
+    'load under Node type stripping: erasable syntax and explicit .ts imports only (#13)',
+    () => {
+      const result = spawnSync(process.execPath, ['src/index.ts'], { encoding: 'utf8' });
+      expect(result.stderr).not.toContain('ERR_');
+      expect(result.status).toBe(0);
+    },
+  );
 });

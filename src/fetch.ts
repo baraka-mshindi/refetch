@@ -1,5 +1,5 @@
-import { DEFAULT_TIMEOUT } from './constants';
-import { TimeoutError } from './errors';
+import { DEFAULT_TIMEOUT } from './constants.ts';
+import { TimeoutError } from './errors.ts';
 
 /** `setTimeout` cannot schedule beyond a signed 32-bit millisecond value. */
 const MAX_TIMEOUT = 2_147_483_647;

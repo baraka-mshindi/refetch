@@ -4,7 +4,7 @@ import type {
   BackoffOptions,
   RetryConfig,
   RetryContext,
-} from './types';
+} from './types.ts';
 
 const DEFAULT_NON_RETRYABLE = new Set([400, 401, 403, 404, 422]);
 /** Longest server-requested delay honoured by default; longer means "come back later". */

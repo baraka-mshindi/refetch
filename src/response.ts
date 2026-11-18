@@ -1,7 +1,7 @@
-import { JSON_LIKE_RE } from './body';
-import { buildRefetchError, classifyProblem, ParseError, ResponseSizeError } from './errors';
-import { headersToObject } from './headers';
-import type { ApiResponse, ParseJson, ResolvedRequest, ResponseBodyType } from './types';
+import { JSON_LIKE_RE } from './body.ts';
+import { buildRefetchError, classifyProblem, ParseError, ResponseSizeError } from './errors.ts';
+import { headersToObject } from './headers.ts';
+import type { ApiResponse, ParseJson, ResolvedRequest, ResponseBodyType } from './types.ts';
 
 // Matches binary MIME prefixes and known binary application subtypes
 const BINARY_PREFIX_RE = /^(image|audio|video)\//i;

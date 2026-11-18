@@ -23,6 +23,7 @@ import {
   type ThrowOnError,
   unwrap,
 } from '../../src/index';
+import { ndjson, type SseEvent, sse } from '../../src/stream';
 
 interface User {
   id: number;
@@ -226,5 +227,17 @@ describe('public API types', () => {
     expectTypeOf<Extract<RefetchError, { kind: 'validation' }>['issues']>().toEqualTypeOf<
       ReadonlyArray<StandardSchemaV1.Issue>
     >();
+  });
+
+  it('types the /stream helpers as responses holding async iterables', () => {
+    expectTypeOf(sse(api, '/events')).resolves.toEqualTypeOf<
+      ApiResponse<AsyncGenerator<SseEvent>>
+    >();
+    expectTypeOf(ndjson<User>(api, '/users.ndjson')).resolves.toEqualTypeOf<
+      ApiResponse<AsyncGenerator<User>>
+    >();
+    expectTypeOf(
+      api.stream('/chat', undefined, { method: 'POST', data: { prompt: 'hi' } }),
+    ).resolves.toEqualTypeOf<ApiResponse<ReadableStream<Uint8Array>>>();
   });
 });

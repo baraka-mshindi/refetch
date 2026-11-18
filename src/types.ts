@@ -368,8 +368,10 @@ export interface RefetchInstance {
   ): Promise<ApiResponse<SchemaData<T, C>>>;
 
   /**
-   * Fetch a resource as a raw ReadableStream — no body parsing.
-   * Useful for large downloads, SSE, or chunked data.
+   * Fetch a resource as a raw ReadableStream, without parsing the body. Shorthand for
+   * `responseType: 'stream'` with retries off: `config.method` and `config.data` are honoured,
+   * response interceptors and monitors run, and a failed request carries its parsed error
+   * body. For decoded SSE or NDJSON use `sse()` / `ndjson()` from the `/stream` sub-path.
    */
   stream<T = Uint8Array>(
     url: string,

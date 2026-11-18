@@ -644,93 +644,20 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
   // ─── Streaming ──────────────────────────────────────────────────────────
 
-  async function openStream<T = Uint8Array>(
+  function stream<T = Uint8Array>(
     url: string,
-    params?: Record<string, unknown>,
+    params?: QueryParams,
     config: RequestConfig = {},
   ): Promise<ApiResponse<ReadableStream<T>>> {
-    const startTime = Date.now();
-
-    let mergedConfig: RequestConfig = {
-      ...state.config,
+    const method = config.method ?? 'GET';
+    // The ordinary request path with the body left unread. A stream is one-shot, so the
+    // call is never retried.
+    return request<ReadableStream<T>>(method, url, shouldHaveBody(method) ? config.data : params, {
       ...config,
-      url,
-      method: 'GET',
       params,
-    };
-    mergedConfig.headers = headersToObject(mergeHeaders(state.config.headers, config.headers));
-    resolveTimeout(mergedConfig.timeout, state.config.timeout);
-
-    try {
-      const intercepted = await applyRequestInterceptors(mergedConfig);
-      if (isShortCircuit(intercepted)) {
-        return intercepted.response as ApiResponse<ReadableStream<T>>;
-      }
-      mergedConfig = intercepted;
-    } catch (error) {
-      return normalizeErrorResponse(
-        toError(error),
-        undefined,
-        Date.now() - startTime,
-      ) as ApiResponse<ReadableStream<T>>;
-    }
-
-    const fullUrl = buildUrl(
-      mergedConfig.baseURL || state.config.baseURL,
-      mergedConfig.url || url,
-      mergedConfig.params,
-      mergedConfig.paramsSerializer,
-    );
-    const headers = mergeHeaders(DEFAULT_HEADERS, mergedConfig.headers);
-
-    // The timeout covers the wait for headers only; the caller's signal stays linked to the
-    // body stream so an abort after headers still cancels the download.
-    const attempt = createAttemptSignal({
-      signal: mergedConfig.signal,
-      timeout: resolveTimeout(mergedConfig.timeout, state.config.timeout),
+      responseType: 'stream',
+      retry: 1,
     });
-
-    try {
-      const response = await fetch(fullUrl, {
-        ...toRequestInit(mergedConfig),
-        method: 'GET',
-        headers,
-        signal: attempt.signal,
-      });
-      attempt.clearTimeout();
-      const duration = Date.now() - startTime;
-
-      if (!response.ok) {
-        attempt.dispose();
-        const error = new Error(
-          `HTTP GET ${fullUrl} failed with status ${response.status}: ${response.statusText}`,
-        );
-        return normalizeErrorResponse(error, response, duration) as ApiResponse<ReadableStream<T>>;
-      }
-
-      if (!response.body) {
-        attempt.dispose();
-        const error = new Error(
-          'Response body is null — streaming not supported in this environment',
-        );
-        return normalizeErrorResponse(error, response, duration) as ApiResponse<ReadableStream<T>>;
-      }
-
-      return normalizeSuccessResponse(response.body as ReadableStream<T>, response, duration);
-    } catch (error) {
-      attempt.dispose();
-      const duration = Date.now() - startTime;
-      const failure = resolveFailure(error, attempt.signal, true);
-      return normalizeErrorResponse(failure, undefined, duration) as ApiResponse<ReadableStream<T>>;
-    }
-  }
-
-  async function stream<T = Uint8Array>(
-    url: string,
-    params?: Record<string, unknown>,
-    config: RequestConfig = {},
-  ): Promise<ApiResponse<ReadableStream<T>>> {
-    return settle(await openStream<T>(url, params, config), config);
   }
 
   // ─── Transform aliases (backward compat) ────────────────────────────────

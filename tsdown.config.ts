@@ -6,6 +6,7 @@ export default defineConfig({
     retry: 'src/retry.ts',
     middleware: 'src/middleware.ts',
     pipe: 'src/pipe.ts',
+    stream: 'src/stream.ts',
   },
   format: ['esm', 'cjs'],
   // Keep the file names package.json already points at (.js/.d.ts for ESM, .cjs/.d.cts for CJS).

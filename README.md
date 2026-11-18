@@ -14,12 +14,12 @@ A modern, production-grade HTTP client built on native `fetch` — composable, c
 - **Schema validation** — any Standard Schema validator (Zod, Valibot, ArkType) via `schema` / `bodySchema`, with inferred `data` types
 - **Opt-in throw mode** — `throwOnError` and `unwrap()` reject with typed error classes for TanStack Query-style callers
 - **Retry** — per-request and instance-wide, fully configurable with custom delay/condition
-- **Streaming** — raw `ReadableStream` via `stream()`
+- **Streaming** — raw `ReadableStream` via `stream()` for any method, plus SSE and NDJSON decoders for LLM-style streams
 - **Cancellation** — `createCancelToken()` wraps `AbortController`
 - **Middleware HOFs** — `withAuth`, `withTimeout`, `withLogging`, `withHeaders`, `withBaseURL`
 - **Full body support** — JSON, `FormData`, `URLSearchParams`, `Blob`, `ArrayBuffer`, `ReadableStream`
 - **Full response parsing** — JSON, `+json` variants, form-encoded, binary, text, empty bodies; `responseType` override and pluggable `parseJson` / `stringifyJson`
-- **Tree-shakeable** — sub-path exports for retry, middleware, and pipe
+- **Tree-shakeable** — sub-path exports for retry, middleware, pipe, and stream
 - **Zero runtime dependencies**
 
 ## Installation
@@ -369,32 +369,56 @@ if (!response.ok && response.error.kind === 'cancel') {
 
 ## Streaming
 
-`stream()` returns the raw `ReadableStream` without body parsing — useful for large downloads, SSE, or chunked responses:
+`stream()` returns the raw `ReadableStream` without parsing the body. It accepts any method and body, runs response interceptors and monitors, and honours `throwOnError`:
 
 ```typescript
-const response = await api.stream('/large-file.bin');
-
-if (response.ok) {
-  const reader = response.data.getReader();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    processChunk(value); // Uint8Array
+const download = await api.stream('/large-file.bin');
+if (download.ok) {
+  const reader = download.data.getReader();
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+    processChunk(chunk.value); // Uint8Array
   }
 }
+
+const upload = await api.stream('/render', undefined, { method: 'POST', data: { scene } });
 ```
 
-**SSE / text streams:**
+`stream()` is shorthand for `responseType: 'stream'` with retries off. `timeout` covers the wait for headers only, the request `signal` stays linked to the body, and a failed request resolves as an error response with its parsed error body.
+
+### Server-Sent Events and NDJSON
+
+The `/stream` sub-path decodes the two common streaming formats into async iterables. Nothing is buffered beyond the current line, and breaking out of the loop cancels the download.
 
 ```typescript
-const response = await api.stream<string>('/events');
-if (response.ok) {
-  const text = response.data.pipeThrough(new TextDecoderStream());
-  for await (const chunk of text) {
-    console.log(chunk);
+import { sse, ndjson } from '@mshindi-labs/refetch/stream';
+
+// LLM chat completion: POST + text/event-stream
+const chat = await sse(api, '/v1/chat/completions', {
+  method: 'POST',
+  data: { model, messages, stream: true },
+  idleTimeout: 30_000, // fail if the stream goes quiet for 30 s
+});
+
+if (chat.ok) {
+  for await (const event of chat.data) {
+    if (event.data === '[DONE]') break;
+    render(JSON.parse(event.data).choices[0].delta.content);
   }
+} else {
+  showError(chat.problem, chat.data); // ordinary error response, body parsed
 }
+
+// NDJSON: one JSON value per line
+const logs = await ndjson<LogLine>(api, '/logs/tail');
+if (logs.ok) for await (const line of logs.data) append(line);
 ```
+
+- `sse()` and `ndjson()` call `api.stream()`, so everything above applies. They send `Accept: text/event-stream` / `application/x-ndjson` unless you set one.
+- Each SSE event is `{ data, event?, id?, retry? }`, parsed by the WHATWG rules: comments are skipped, multiple `data:` lines are joined with `\n`, `\n`, `\r\n` and `\r` are all accepted, and an event cut off before its blank line is discarded. `id` is the last event ID seen so far.
+- **Cancellation:** abort the request `signal` (or call `cancel()` from `createCancelToken()`). The `for await` loop then throws the abort reason, a `CancelError` for cancel tokens. The response has already resolved by then, so this arrives as a thrown error, not as `kind: 'cancel'`.
+- **Reconnecting** is up to you: keep the last `event.id` and pass it back as a `Last-Event-ID` header on the next call.
+- `ndjson()` uses `config.parseJson` when set; an invalid line throws a `SyntaxError` from the loop.
+- Already holding a stream? Use the decoders directly: `parseSse(stream)` and `parseNdjson(stream, { parseJson })`.
 
 ## Middleware + pipe
 
@@ -566,6 +590,7 @@ await api.post('/users', { name: '  Ada  ' }, { schema: User, bodySchema: NewUse
 import { pipe }                              from '@mshindi-labs/refetch/pipe';
 import { withAuth, withLogging }             from '@mshindi-labs/refetch/middleware';
 import { normalizeRetryConfig, shouldRetry } from '@mshindi-labs/refetch/retry';
+import { sse, ndjson, parseSse, parseNdjson } from '@mshindi-labs/refetch/stream';
 ```
 
 ## Dynamic Instance Configuration
@@ -666,7 +691,7 @@ function useCreateUser() {
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~7 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~7.5 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

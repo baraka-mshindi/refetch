@@ -209,14 +209,16 @@ export function buildRefetchError(
  * `originalError`. `T` types the error body in `data`.
  */
 export class RefetchResponseError<T = unknown> extends Error {
-  readonly response: ApiErrorResponse<T>;
+  // `response`, `request` and `headers` are non-enumerable: `request.config` keeps unredacted
+  // credentials for replays, and error reporters serialise enumerable properties.
+  declare readonly response: ApiErrorResponse<T>;
+  declare readonly request: ResolvedRequest | undefined;
+  declare readonly headers: Record<string, string> | undefined;
   readonly kind: RefetchError['kind'];
   readonly problem: PROBLEM_CODE;
   readonly status: number | undefined;
   /** The parsed error body, or the raw text when it could not be parsed. */
   readonly data: T | undefined;
-  readonly headers: Record<string, string> | undefined;
-  readonly request: ResolvedRequest | undefined;
 
   constructor(response: ApiErrorResponse<T>) {
     const cause = response.originalError ?? undefined;
@@ -225,13 +227,15 @@ export class RefetchResponseError<T = unknown> extends Error {
     const kind = response.error?.kind ?? 'unknown';
     // Set explicitly so the name survives minification of consumer bundles.
     this.name = `Refetch${kind.charAt(0).toUpperCase()}${kind.slice(1)}Error`;
-    this.response = response;
+    Object.defineProperties(this, {
+      response: { value: response },
+      request: { value: response.request },
+      headers: { value: response.headers },
+    });
     this.kind = kind;
     this.problem = response.problem;
     this.status = response.status;
     this.data = response.data;
-    this.headers = response.headers;
-    this.request = response.request;
   }
 }
 

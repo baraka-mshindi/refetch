@@ -215,6 +215,8 @@ try {
 
 Every error carries `kind`, `problem`, `status`, `data`, `headers`, `request`, the full `response` (the `ApiErrorResponse`) and the underlying `cause`. Throwing happens last: retries, response interceptors and monitors run exactly as they do without it, so an interceptor can still turn a failure into a success.
 
+`response`, `request` and `headers` are non-enumerable, so `JSON.stringify(error)` and error reporters that walk enumerable properties do not pick up the request config (which holds unredacted credentials for replays) or the request body. `data`, the server's error body, is enumerable; scrub it yourself if your API echoes secrets.
+
 ## Interceptors
 
 Return-based, ID-tracked, and removable. Request interceptors run **LIFO** (last registered, first to run); response interceptors run **FIFO**.

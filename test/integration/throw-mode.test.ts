@@ -112,6 +112,29 @@ describe('unwrap', () => {
     expect((error as RefetchUnknownError).message).toBe('token fetch failed');
   });
 
+  it('keeps credentials out of serialised errors while leaving them readable in code', async () => {
+    const api = create({
+      baseURL: server.baseURL,
+      headers: { Authorization: 'Bearer s3cret-token' },
+    });
+    const error = (await rejection(
+      api.post('/status/401', { password: 'hunter2' }).then(unwrap),
+    )) as RefetchHttpError;
+
+    expect(Object.keys(error)).not.toEqual(expect.arrayContaining(['response']));
+    expect(Object.keys(error)).not.toEqual(expect.arrayContaining(['request']));
+    expect(Object.keys(error)).not.toEqual(expect.arrayContaining(['headers']));
+    const serialised = JSON.stringify(error) + JSON.stringify({ ...error });
+    expect(serialised).not.toContain('s3cret-token');
+    expect(serialised).not.toContain('hunter2');
+    expect(serialised).toContain('"status":401');
+
+    // Still available to code that asks for it, e.g. to replay the request.
+    expect(error.response.status).toBe(401);
+    expect(error.request?.headers.authorization).toBe('[redacted]');
+    expect(error.request?.config.data).toEqual({ password: 'hunter2' });
+  });
+
   it('isRefetchError rejects foreign values', () => {
     expect(isRefetchError(new Error('nope'))).toBe(false);
     expect(isRefetchError(null)).toBe(false);

@@ -39,7 +39,7 @@ Thank you for your interest in contributing to `@mshindi-labs/refetch`! This doc
 
 2. **Add upstream remote**
    ```bash
-   git remote add upstream https://github.com/mshindi-labs/refetch.git
+   git remote add upstream https://github.com/baraka-mshindi/refetch.git
    ```
 
 3. **Install dependencies**

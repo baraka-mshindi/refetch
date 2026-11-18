@@ -1,7 +1,7 @@
 name: OpenSSF Scorecard
 
 # Weekly supply-chain posture check; results feed the badge at
-# https://scorecard.dev/viewer/?uri=github.com/mshindi-labs/refetch
+# https://scorecard.dev/viewer/?uri=github.com/baraka-mshindi/refetch
 on:
   schedule:
     - cron: "30 2 * * 1"

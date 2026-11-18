@@ -1,13 +1,12 @@
 name: Docs
 
-# Builds the VitePress site from README.md, SECURITY.md and CHANGELOG.md and publishes it to
+# Builds the VitePress site from docs/, SECURITY.md and CHANGELOG.md and publishes it to
 # GitHub Pages. Requires Settings → Pages → Source: "GitHub Actions" on the repository.
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "README.md"
       - "SECURITY.md"
       - "CHANGELOG.md"
       - ".github/workflows/docs.yml"

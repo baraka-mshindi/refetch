@@ -8,10 +8,10 @@ hero:
   actions:
     - theme: brand
       text: Read the guide
-      link: /guide
+      link: /guide/
     - theme: alt
       text: Compare with ky, ofetch and others
-      link: /guide#why-refetch
+      link: /guide/comparison
 
 features:
   - title: Failures are values

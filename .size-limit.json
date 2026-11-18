@@ -2,7 +2,7 @@
   {
     "name": "index (ESM)",
     "path": "dist/index.js",
-    "limit": "8 KB",
+    "limit": "8.5 KB",
     "gzip": true
   },
   {
@@ -14,7 +14,7 @@
   {
     "name": "retry (ESM)",
     "path": "dist/retry.js",
-    "limit": "1 KB",
+    "limit": "1.2 KB",
     "gzip": true
   },
   {

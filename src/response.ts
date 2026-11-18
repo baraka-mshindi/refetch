@@ -26,23 +26,36 @@ const BINARY_APP_TYPES = new Set([
   'font/otf',
 ]);
 
+/** Receives the running byte count per chunk; `done` marks the extra call after the last one. */
+export type ByteObserver = (transferred: number, chunk: Uint8Array, done?: boolean) => void;
+
 /**
- * Wraps a response so that reading its body fails with `ResponseSizeError` once more than
- * `limit` bytes have arrived; erroring the stream also cancels the download.
+ * Pipes a byte stream through a counter. Past `limit` bytes the stream fails with
+ * `ResponseSizeError` (which also cancels the source); `onBytes` is told about every chunk
+ * and once more when the stream ends.
  */
-export function limitResponseSize(response: Response, limit: number): Response {
-  if (!response.body) return response;
-  let received = 0;
-  const counted = response.body.pipeThrough(
+export function observeBytes(
+  stream: ReadableStream<Uint8Array>,
+  limit?: number,
+  onBytes?: ByteObserver,
+): ReadableStream<Uint8Array> {
+  let transferred = 0;
+  return stream.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        received += chunk.byteLength;
-        if (received > limit) controller.error(new ResponseSizeError(limit));
-        else controller.enqueue(chunk);
+        transferred += chunk.byteLength;
+        if (limit && transferred > limit) {
+          controller.error(new ResponseSizeError(limit));
+          return;
+        }
+        onBytes?.(transferred, chunk);
+        controller.enqueue(chunk);
+      },
+      flush() {
+        onBytes?.(transferred, new Uint8Array(), true);
       },
     }),
   );
-  return new Response(counted, response);
 }
 
 export interface ParseBodyOptions {

@@ -1,3 +1,5 @@
+import type { StandardSchemaV1 } from './schema';
+
 export enum PROBLEM_CODE {
   NONE = 'NONE',
   CLIENT_ERROR = 'CLIENT_ERROR',
@@ -7,6 +9,7 @@ export enum PROBLEM_CODE {
   NETWORK_ERROR = 'NETWORK_ERROR',
   CANCEL_ERROR = 'CANCEL_ERROR',
   PARSE_ERROR = 'PARSE_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
@@ -28,6 +31,7 @@ export type RefetchError =
   | { kind: 'cancel'; reason?: string; cause: Error }
   | { kind: 'http'; status: number; statusText: string }
   | { kind: 'parse'; contentType: string | null; cause: Error }
+  | { kind: 'validation'; issues: ReadonlyArray<StandardSchemaV1.Issue>; cause: Error }
   | { kind: 'unknown'; cause: Error };
 
 /**
@@ -214,7 +218,24 @@ export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'>, Bod
   retry?: number | RetryConfig;
   /** Overrides the instance `throwOnError` for this request. */
   throwOnError?: ThrowOnError;
+  /**
+   * Validates the response body of a successful request with any Standard Schema validator
+   * (Zod, Valibot, ArkType…). `data` becomes the schema output and its type is inferred. A
+   * mismatch is an error response with `kind: 'validation'`; it is never retried. Runs after
+   * response interceptors and before monitors.
+   */
+  schema?: StandardSchemaV1;
+  /** Validates `data` before it is serialised; a mismatch fails without a network call. */
+  bodySchema?: StandardSchemaV1;
 }
+
+/**
+ * The `data` type of a response: the output of `config.schema` when one is passed and the
+ * response generic is left to inference, otherwise the explicit generic `T`.
+ */
+export type SchemaData<T, C> = C extends { schema: infer S extends StandardSchemaV1 }
+  ? StandardSchemaV1.InferOutput<S>
+  : T;
 
 export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'>, BodyOptions {
   baseURL?: string;
@@ -268,73 +289,75 @@ export interface RefetchInstance {
     response: InterceptorManager<ApiResponse<unknown>>;
   };
 
-  get<T = unknown>(
+  get<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
-  post<TResponse = unknown, TBody = unknown>(
+  post<TResponse = unknown, TBody = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     data?: TBody,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<TResponse>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<TResponse, C>>>;
 
-  put<TResponse = unknown, TBody = unknown>(
+  put<TResponse = unknown, TBody = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     data?: TBody,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<TResponse>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<TResponse, C>>>;
 
-  patch<TResponse = unknown, TBody = unknown>(
+  patch<TResponse = unknown, TBody = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     data?: TBody,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<TResponse>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<TResponse, C>>>;
 
   /** `DELETE` with query params; pass `config.data` to send a body (bulk deletes). */
-  delete<T = unknown>(
+  delete<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
-  head<T = unknown>(
+  head<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
-  link<T = unknown>(
+  link<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
-  unlink<T = unknown>(
+  unlink<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
   /**
    * RFC 10008 `QUERY`: a safe, idempotent request whose body defines the query. `Content-Type`
    * is set from the body like any other request; pass your own for formats such as SQL.
    */
-  query<TResponse = unknown, TBody = unknown>(
+  query<TResponse = unknown, TBody = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     data?: TBody,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<TResponse>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<TResponse, C>>>;
 
   /** `OPTIONS` with query params; pass `config.data` to send a body. */
-  options<T = unknown>(
+  options<T = unknown, C extends RequestConfig = RequestConfig>(
     url: string,
     params?: QueryParams,
-    config?: RequestConfig,
-  ): Promise<ApiResponse<T>>;
+    config?: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
-  any<T = unknown>(config: RequestConfig): Promise<ApiResponse<T>>;
+  any<T = unknown, C extends RequestConfig = RequestConfig>(
+    config: C,
+  ): Promise<ApiResponse<SchemaData<T, C>>>;
 
   /**
    * Fetch a resource as a raw ReadableStream — no body parsing.

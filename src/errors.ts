@@ -1,4 +1,5 @@
 import { STATUS_RANGES } from './constants';
+import type { StandardSchemaV1 } from './schema';
 import {
   type ApiErrorResponse,
   type ApiResponse,
@@ -80,6 +81,17 @@ export class ParseError extends Error {
   }
 }
 
+/** Thrown when a `schema` or `bodySchema` rejects a value; `issues` are the validator's. */
+export class ValidationError extends Error {
+  readonly issues: ReadonlyArray<StandardSchemaV1.Issue>;
+
+  constructor(issues: ReadonlyArray<StandardSchemaV1.Issue>) {
+    super(`Validation failed: ${issues[0]?.message ?? 'invalid data'}`);
+    this.name = 'ValidationError';
+    this.issues = issues;
+  }
+}
+
 const CONNECTION_CODES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -121,6 +133,7 @@ export function classifyProblem(status?: number, error?: Error): PROBLEM_CODE {
     if (name.endsWith('TimeoutError')) return PROBLEM_CODE.TIMEOUT_ERROR;
     if (name === 'CancelError') return PROBLEM_CODE.CANCEL_ERROR;
     if (name === 'ParseError') return PROBLEM_CODE.PARSE_ERROR;
+    if (name === 'ValidationError') return PROBLEM_CODE.VALIDATION_ERROR;
     if (name === 'AbortError' || message.includes('aborted')) {
       return message.includes('timeout') ? PROBLEM_CODE.TIMEOUT_ERROR : PROBLEM_CODE.CANCEL_ERROR;
     }
@@ -184,6 +197,9 @@ export function buildRefetchError(
         contentType: error instanceof ParseError ? error.contentType : (contentType ?? null),
         cause: error,
       };
+
+    case PROBLEM_CODE.VALIDATION_ERROR:
+      return { kind: 'validation', issues: (error as ValidationError).issues ?? [], cause: error };
 
     case PROBLEM_CODE.CLIENT_ERROR:
     case PROBLEM_CODE.SERVER_ERROR:
@@ -269,6 +285,15 @@ export class RefetchParseError<T = unknown> extends RefetchResponseError<T> {
   declare readonly kind: 'parse';
 }
 
+/** A `schema` or `bodySchema` rejected the data; `data` is the unvalidated body. */
+export class RefetchValidationError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'validation';
+
+  get issues(): ReadonlyArray<StandardSchemaV1.Issue> {
+    return (this.response.error as { issues?: ReadonlyArray<StandardSchemaV1.Issue> }).issues ?? [];
+  }
+}
+
 /** Anything else, such as a throwing interceptor. */
 export class RefetchUnknownError<T = unknown> extends RefetchResponseError<T> {
   declare readonly kind: 'unknown';
@@ -280,6 +305,7 @@ const RESPONSE_ERRORS = {
   network: RefetchNetworkError,
   cancel: RefetchCancelError,
   parse: RefetchParseError,
+  validation: RefetchValidationError,
   unknown: RefetchUnknownError,
 };
 

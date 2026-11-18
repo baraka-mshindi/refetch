@@ -1,5 +1,5 @@
-export { prepareRequestBody, shouldHaveBody } from './body';
-export { DEFAULT_TIMEOUT, STATUS_RANGES } from './constants';
+export { prepareRequestBody, shouldHaveBody } from './body.ts';
+export { DEFAULT_TIMEOUT, STATUS_RANGES } from './constants.ts';
 export {
   buildRefetchError,
   CancelError,
@@ -22,24 +22,24 @@ export {
   toResponseError,
   unwrap,
   ValidationError,
-} from './errors';
-export { fetchWithTimeout } from './fetch';
-export { headersToObject, mergeHeaders, setRequestHeader } from './headers';
-export type { AuthOptions } from './middleware';
+} from './errors.ts';
+export { fetchWithTimeout } from './fetch.ts';
+export { headersToObject, mergeHeaders, setRequestHeader } from './headers.ts';
+export type { AuthOptions } from './middleware.ts';
 export {
   withAuth,
   withBaseURL,
   withHeaders,
   withLogging,
   withTimeout,
-} from './middleware';
-export { pipe } from './pipe';
-export { create } from './refetch';
+} from './middleware.ts';
+export { pipe } from './pipe.ts';
+export { create } from './refetch.ts';
 export {
   normalizeErrorResponse,
   normalizeSuccessResponse,
   parseResponseBody,
-} from './response';
+} from './response.ts';
 export {
   DEFAULT_MAX_RETRY_AFTER,
   exponentialBackoff,
@@ -48,8 +48,8 @@ export {
   retryAfterDelay,
   shouldRetry,
   sleep,
-} from './retry';
-export type { StandardSchemaV1 } from './schema';
+} from './retry.ts';
+export type { StandardSchemaV1 } from './schema.ts';
 export type {
   ApiErrorResponse,
   ApiOkResponse,
@@ -64,6 +64,7 @@ export type {
   Monitor,
   ParamsSerializer,
   ParseJson,
+  ProblemCode,
   Progress,
   ProgressCallback,
   QueryParams,
@@ -82,6 +83,6 @@ export type {
   ShortCircuit,
   StringifyJson,
   ThrowOnError,
-} from './types';
-export { isErrorResponse, isOkResponse, PROBLEM_CODE } from './types';
-export { buildQueryString, buildUrl } from './url';
+} from './types.ts';
+export { isErrorResponse, isOkResponse, PROBLEM_CODE } from './types.ts';
+export { buildQueryString, buildUrl } from './url.ts';

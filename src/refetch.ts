@@ -3,8 +3,8 @@ import {
   prepareRequestBody,
   shouldHaveBody,
   supportsRequestStreams,
-} from './body';
-import { DEFAULT_HEADERS } from './constants';
+} from './body.ts';
+import { DEFAULT_HEADERS } from './constants.ts';
 import {
   CancelError,
   NetworkError,
@@ -13,17 +13,17 @@ import {
   TimeoutError,
   toResponseError,
   ValidationError,
-} from './errors';
-import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch';
-import { headersToObject, mergeHeaders } from './headers';
-import { createInterceptorManager } from './interceptors';
+} from './errors.ts';
+import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch.ts';
+import { headersToObject, mergeHeaders } from './headers.ts';
+import { createInterceptorManager } from './interceptors.ts';
 import {
   type ByteObserver,
   normalizeErrorResponse,
   normalizeSuccessResponse,
   observeBytes,
   parseResponseBody,
-} from './response';
+} from './response.ts';
 import {
   DEFAULT_MAX_RETRY_AFTER,
   getRetryDelay,
@@ -31,8 +31,8 @@ import {
   retryAfterDelay,
   shouldRetry,
   sleep,
-} from './retry';
-import type { StandardSchemaV1 } from './schema';
+} from './retry.ts';
+import type { StandardSchemaV1 } from './schema.ts';
 import type {
   ApiResponse,
   AsyncRequestTransform,
@@ -49,9 +49,9 @@ import type {
   ResponseTransform,
   RetryConfig,
   ShortCircuit,
-} from './types';
-import { isErrorResponse } from './types';
-import { buildUrl } from './url';
+} from './types.ts';
+import { isErrorResponse } from './types.ts';
+import { buildUrl } from './url.ts';
 
 /** Config keys that belong to refetch and must not reach `fetch()`. */
 const REFETCH_KEYS = [

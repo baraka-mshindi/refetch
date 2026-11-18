@@ -1,18 +1,28 @@
-import type { StandardSchemaV1 } from './schema';
+import type { StandardSchemaV1 } from './schema.ts';
 
-export enum PROBLEM_CODE {
-  NONE = 'NONE',
-  CLIENT_ERROR = 'CLIENT_ERROR',
-  SERVER_ERROR = 'SERVER_ERROR',
-  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
-  CONNECTION_ERROR = 'CONNECTION_ERROR',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  CANCEL_ERROR = 'CANCEL_ERROR',
-  PARSE_ERROR = 'PARSE_ERROR',
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  RESPONSE_TOO_LARGE = 'RESPONSE_TOO_LARGE',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
-}
+/**
+ * The coarse outcome of a request. A plain object, not an enum, so the source runs under
+ * Node's type stripping and `erasableSyntaxOnly`; the runtime values are unchanged.
+ */
+export const PROBLEM_CODE = {
+  NONE: 'NONE',
+  CLIENT_ERROR: 'CLIENT_ERROR',
+  SERVER_ERROR: 'SERVER_ERROR',
+  TIMEOUT_ERROR: 'TIMEOUT_ERROR',
+  CONNECTION_ERROR: 'CONNECTION_ERROR',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  CANCEL_ERROR: 'CANCEL_ERROR',
+  PARSE_ERROR: 'PARSE_ERROR',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  RESPONSE_TOO_LARGE: 'RESPONSE_TOO_LARGE',
+  UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+} as const;
+
+/** Union of the `PROBLEM_CODE` values. */
+export type ProblemCode = (typeof PROBLEM_CODE)[keyof typeof PROBLEM_CODE];
+
+/** @deprecated Use `ProblemCode`. Kept so `PROBLEM_CODE` still works in type positions. */
+export type PROBLEM_CODE = ProblemCode;
 
 /**
  * Discriminated union covering every failure mode with narrowable fields per kind.
@@ -123,7 +133,7 @@ export type RequestInterceptorResult = RequestConfig | ShortCircuit;
 
 export interface ApiResponse<T> {
   ok: boolean;
-  problem: PROBLEM_CODE | null;
+  problem: ProblemCode | null;
   originalError: Error | null;
   data?: T;
   status?: number;
@@ -143,7 +153,7 @@ export interface ApiOkResponse<T> extends ApiResponse<T> {
 
 export interface ApiErrorResponse<T> extends ApiResponse<T> {
   ok: false;
-  problem: PROBLEM_CODE;
+  problem: ProblemCode;
   /** Discriminated union for precise narrowing — use instead of or alongside `problem`. */
   error: RefetchError;
   originalError: Error | null;

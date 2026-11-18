@@ -1,4 +1,4 @@
-import type { ParamsSerializer, QueryParams } from './types';
+import type { ParamsSerializer, QueryParams } from './types.ts';
 
 function appendValue(search: URLSearchParams, key: string, value: unknown): void {
   if (value === undefined || value === null) return;

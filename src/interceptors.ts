@@ -1,4 +1,4 @@
-import type { InterceptorHandler, InterceptorManager } from './types';
+import type { InterceptorHandler, InterceptorManager } from './types.ts';
 
 export interface InternalInterceptorManager<T, R = T> extends InterceptorManager<T, R> {
   getAll(): Array<InterceptorHandler<T, R>>;

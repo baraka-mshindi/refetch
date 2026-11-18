@@ -1,6 +1,6 @@
 // Streaming decoders for Server-Sent Events and NDJSON. Like `retry.ts`, this module has no
 // runtime imports so the `/stream` sub-path stays small.
-import type { ApiResponse, RefetchInstance, RequestConfig } from './types';
+import type { ApiResponse, RefetchInstance, RequestConfig } from './types.ts';
 
 /** One dispatched Server-Sent Event. */
 export interface SseEvent {

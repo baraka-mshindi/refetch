@@ -156,6 +156,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- Source must stay loadable by Node's type stripping: `erasableSyntaxOnly` is on (no enums, no parameter properties, no runtime namespaces) and relative imports in `src/` carry the `.ts` extension (`allowImportingTsExtensions`; tsdown rewrites them). `PROBLEM_CODE` is an `as const` object with a `ProblemCode` union
 - The docs site (`docs/`, VitePress) only includes `README.md`, `SECURITY.md` and `CHANGELOG.md`; write documentation in those files, not in `docs/`. The README comparison table is dated: re-check it against `npm view <pkg>` and each README before a minor release
 - `extend(overrides)` builds a new instance through `create()`: object overrides merge (headers via `mergeHeaders`, `retry` field by field, signals via `AbortSignal.any`), a function result replaces; interceptors and monitors are re-registered in insertion order, so no mutable state is shared. Middleware HOFs still mutate their argument until v4 (#56)
 - `observeBytes(stream, limit?, onBytes?)` in `response.ts` is the one byte counter: it enforces `maxResponseSize`, drives `onDownloadProgress`, and counts uploads. `reportProgress()` in `refetch.ts` adapts user callbacks and swallows (logs) their errors

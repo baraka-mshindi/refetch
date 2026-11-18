@@ -1,5 +1,11 @@
 import { STATUS_RANGES } from './constants';
-import { PROBLEM_CODE, type RefetchError } from './types';
+import {
+  type ApiErrorResponse,
+  type ApiResponse,
+  PROBLEM_CODE,
+  type RefetchError,
+  type ResolvedRequest,
+} from './types';
 
 export class CancelError extends Error {
   constructor(message?: string) {
@@ -194,4 +200,102 @@ export function buildRefetchError(
       }
       return { kind: 'unknown', cause: error };
   }
+}
+
+/**
+ * The rejection used by `throwOnError` and `unwrap()`: an error response as an `Error`.
+ * Each `RefetchError` kind has its own subclass (`RefetchHttpError`, `RefetchTimeoutError`…),
+ * so `instanceof` narrows; `response` is the full error response, and `cause` is its
+ * `originalError`. `T` types the error body in `data`.
+ */
+export class RefetchResponseError<T = unknown> extends Error {
+  readonly response: ApiErrorResponse<T>;
+  readonly kind: RefetchError['kind'];
+  readonly problem: PROBLEM_CODE;
+  readonly status: number | undefined;
+  /** The parsed error body, or the raw text when it could not be parsed. */
+  readonly data: T | undefined;
+  readonly headers: Record<string, string> | undefined;
+  readonly request: ResolvedRequest | undefined;
+
+  constructor(response: ApiErrorResponse<T>) {
+    const cause = response.originalError ?? undefined;
+    super(cause?.message ?? `Request failed: ${response.problem}`, { cause });
+    // Hand-built error responses (from interceptors) may lack `error`.
+    const kind = response.error?.kind ?? 'unknown';
+    // Set explicitly so the name survives minification of consumer bundles.
+    this.name = `Refetch${kind.charAt(0).toUpperCase()}${kind.slice(1)}Error`;
+    this.response = response;
+    this.kind = kind;
+    this.problem = response.problem;
+    this.status = response.status;
+    this.data = response.data;
+    this.headers = response.headers;
+    this.request = response.request;
+  }
+}
+
+/** A non-2xx status. `data` holds the error body. */
+export class RefetchHttpError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'http';
+  declare readonly status: number;
+
+  get statusText(): string {
+    return (this.response.error as { statusText?: string }).statusText ?? '';
+  }
+}
+
+/** A per-attempt `timeout` or the `totalTimeout` expired; `cause` is the `TimeoutError`. */
+export class RefetchTimeoutError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'timeout';
+}
+
+/** `fetch()` failed at the transport level; `cause` is the `NetworkError`. */
+export class RefetchNetworkError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'network';
+}
+
+/** The request was aborted through its `signal`. */
+export class RefetchCancelError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'cancel';
+}
+
+/** A 2xx body could not be decoded; `data` is the raw text and `cause` the `ParseError`. */
+export class RefetchParseError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'parse';
+}
+
+/** Anything else, such as a throwing interceptor. */
+export class RefetchUnknownError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'unknown';
+}
+
+const RESPONSE_ERRORS = {
+  http: RefetchHttpError,
+  timeout: RefetchTimeoutError,
+  network: RefetchNetworkError,
+  cancel: RefetchCancelError,
+  parse: RefetchParseError,
+  unknown: RefetchUnknownError,
+};
+
+/** Builds the typed error for an error response. */
+export function toResponseError<T>(response: ApiErrorResponse<T>): RefetchResponseError<T> {
+  return new (RESPONSE_ERRORS[response.error?.kind] ?? RefetchUnknownError)(response);
+}
+
+/** True for any error thrown by `throwOnError` or `unwrap()`. */
+export function isRefetchError(value: unknown): value is RefetchResponseError {
+  return value instanceof RefetchResponseError;
+}
+
+/**
+ * Returns `data` of an ok response, or throws the typed error for an error response.
+ *
+ * @example
+ * const user = await api.get<User>('/users/1').then(unwrap);
+ */
+export function unwrap<T>(response: ApiResponse<T>): T {
+  if (response.ok) return response.data as T;
+  throw toResponseError(response as ApiErrorResponse<T>);
 }

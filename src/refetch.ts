@@ -1,6 +1,6 @@
 import { getBodyContentType, prepareRequestBody, shouldHaveBody } from './body';
 import { DEFAULT_HEADERS } from './constants';
-import { CancelError, NetworkError, ParseError, TimeoutError } from './errors';
+import { CancelError, NetworkError, ParseError, TimeoutError, toResponseError } from './errors';
 import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch';
 import { headersToObject, mergeHeaders } from './headers';
 import { createInterceptorManager } from './interceptors';
@@ -28,6 +28,7 @@ import type {
   ResponseTransform,
   ShortCircuit,
 } from './types';
+import { isErrorResponse } from './types';
 import { buildUrl } from './url';
 
 /** Config keys that belong to refetch and must not reach `fetch()`. */
@@ -42,6 +43,7 @@ const REFETCH_KEYS = [
   'baseURL',
   'retry',
   'context',
+  'throwOnError',
   'signal',
   'headers',
 ] as const;
@@ -330,7 +332,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
   // ─── Core request (with retry) ──────────────────────────────────────────
 
-  async function request<T = unknown>(
+  async function send<T = unknown>(
     method: string,
     url: string,
     dataOrParams?: unknown,
@@ -439,6 +441,24 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     }
   }
 
+  /** Applies `throwOnError` last, so retries, interceptors and monitors have already run. */
+  function settle<R extends ApiResponse<unknown>>(response: R, config: RequestConfig): R {
+    const mode = config.throwOnError ?? state.config.throwOnError;
+    if (isErrorResponse(response) && (typeof mode === 'function' ? mode(response) : mode)) {
+      throw toResponseError(response);
+    }
+    return response;
+  }
+
+  async function request<T = unknown>(
+    method: string,
+    url: string,
+    dataOrParams?: unknown,
+    requestConfig: RequestConfig = {},
+  ): Promise<ApiResponse<T>> {
+    return settle(await send<T>(method, url, dataOrParams, requestConfig), requestConfig);
+  }
+
   // ─── HTTP method wrappers ────────────────────────────────────────────────
 
   function get<T = unknown>(
@@ -514,7 +534,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
   // ─── Streaming ──────────────────────────────────────────────────────────
 
-  async function stream<T = Uint8Array>(
+  async function openStream<T = Uint8Array>(
     url: string,
     params?: Record<string, unknown>,
     config: RequestConfig = {},
@@ -593,6 +613,14 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       const failure = resolveFailure(error, attempt.signal, true);
       return normalizeErrorResponse(failure, undefined, duration) as ApiResponse<ReadableStream<T>>;
     }
+  }
+
+  async function stream<T = Uint8Array>(
+    url: string,
+    params?: Record<string, unknown>,
+    config: RequestConfig = {},
+  ): Promise<ApiResponse<ReadableStream<T>>> {
+    return settle(await openStream<T>(url, params, config), config);
   }
 
   // ─── Transform aliases (backward compat) ────────────────────────────────

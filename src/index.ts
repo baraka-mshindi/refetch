@@ -42,6 +42,8 @@ export {
 } from './response.ts';
 export {
   DEFAULT_MAX_RETRY_AFTER,
+  DEFAULT_RETRY_METHODS,
+  DEFAULT_RETRY_STATUS_CODES,
   exponentialBackoff,
   getRetryDelay,
   normalizeRetryConfig,

@@ -191,3 +191,58 @@ describe('retry', () => {
     expect(server.hits('/flaky')).toBe(0);
   });
 });
+
+describe('retry defaults (v4)', () => {
+  it('does not retry POST or PATCH unless methods opts them in', async () => {
+    await api.post('/status/503', { a: 1 }, { retry: { attempts: 3, delay: 1 } });
+    expect(server.hits('/status/503')).toBe(1);
+
+    server.resetHits();
+    await api.patch('/status/503', { a: 1 }, { retry: { attempts: 3, delay: 1 } });
+    expect(server.hits('/status/503')).toBe(1);
+
+    server.resetHits();
+    await api.post(
+      '/status/503',
+      { a: 1 },
+      { retry: { attempts: 3, delay: 1, methods: ['POST'] } },
+    );
+    expect(server.hits('/status/503')).toBe(3);
+  });
+
+  it('retries PUT, DELETE and QUERY', async () => {
+    for (const call of [
+      () => api.put('/status/503', {}, { retry: { attempts: 2, delay: 1 } }),
+      () => api.delete('/status/503', undefined, { retry: { attempts: 2, delay: 1 } }),
+      () => api.query('/status/503', {}, { retry: { attempts: 2, delay: 1 } }),
+    ]) {
+      server.resetHits();
+      await call();
+      expect(server.hits('/status/503')).toBe(2);
+    }
+  });
+
+  it('retries only the allow-listed statuses', async () => {
+    await api.get('/status/501', undefined, { retry: { attempts: 3, delay: 1 } });
+    expect(server.hits('/status/501')).toBe(1);
+
+    await api.get('/status/409', undefined, { retry: { attempts: 3, delay: 1 } });
+    expect(server.hits('/status/409')).toBe(1);
+
+    await api.get('/status/429', undefined, { retry: { attempts: 2, delay: 1 } });
+    expect(server.hits('/status/429')).toBe(2);
+  });
+
+  it('waits a jittered exponential back-off when no delay is given', async () => {
+    const delays: number[] = [];
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.01);
+    try {
+      await api.get('/status/503', undefined, {
+        retry: { attempts: 3, onRetry: (_attempt, _response, delay) => delays.push(delay) },
+      });
+    } finally {
+      random.mockRestore();
+    }
+    expect(delays).toEqual([3, 6]);
+  });
+});

@@ -471,7 +471,7 @@ Both callbacks receive `({ transferredBytes, totalBytes, percent }, chunk)` for 
 
 ## Middleware + pipe
 
-`pipe` chains middleware HOFs onto an instance without mutation at the call site:
+`pipe` chains middleware onto an instance. Each middleware returns a new instance derived with [`extend()`](#child-instances-extend) and leaves the one it was given untouched, so a shared base client can feed several differently-equipped clients:
 
 ```typescript
 import { create, pipe } from '@mshindi-labs/refetch';
@@ -492,6 +492,14 @@ const api = pipe(
 | `withHeaders(headers)` | Merges additional default headers |
 | `withBaseURL(url)` | Overrides the base URL |
 | `withLogging(logger?)` | Logs each request and response; defaults to `console` |
+
+```typescript
+const base  = pipe(create({ baseURL }), withHeaders({ 'X-App': 'web' }));
+const admin = pipe(base, withAuth(getAdminToken)); // base is unchanged
+const guest = pipe(base, withTimeout(3_000));
+```
+
+Always use the value `pipe` (or the middleware) returns: `withAuth(getToken)(api)` on its own line does nothing to `api`.
 
 Sub-path import (tree-shaking):
 
@@ -679,7 +687,7 @@ Pass a function to replace instead of merge. It receives a copy of the parent co
 const bare = api.extend((parent) => ({ baseURL: parent.baseURL })); // drops headers, retry, timeout…
 ```
 
-Middleware still mutates the instance it is given: `pipe(api, withHeaders(…))` changes `api`. To add middleware to a child only, extend first: `pipe(api.extend(), withHeaders(…))`.
+Middleware works the same way: `pipe(api, withHeaders(…))` returns a child and leaves `api` as it was.
 
 ## Monitors
 
@@ -759,6 +767,17 @@ Size: refetch's root entry is about 8 KB minified + gzip with every export inclu
 Where refetch differs by design: failures are returned as values with a discriminated `error.kind` instead of thrown, with throwing available per instance, per request or per call (`unwrap`). If you prefer exceptions everywhere and the smallest possible bundle, ky or up-fetch are good choices.
 
 ## Migration from v3
+
+**Middleware no longer mutates.** `withAuth`, `withHeaders`, `withTimeout`, `withBaseURL` and `withLogging` each return a new instance and leave their argument untouched. `const api = pipe(create(), withAuth(…))` works as before. Code that applied a middleware for its side effect must now use the result:
+
+```typescript
+// v3
+const api = create({ baseURL });
+withAuth(getToken)(api);            // api now sends the token
+
+// v4
+const api = withAuth(getToken)(create({ baseURL }));
+```
 
 **Transforms are removed.** `addRequestTransform`, `addResponseTransform`, `removeRequestTransform`, `removeResponseTransform`, `clearRequestTransforms` and `clearResponseTransforms` (deprecated since 3.0) are gone, along with the `RequestTransform` / `ResponseTransform` types. Use interceptors, which return the new value instead of mutating:
 

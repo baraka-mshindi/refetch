@@ -1,6 +1,10 @@
 import { headersToObject, mergeHeaders, setRequestHeader } from './headers.ts';
 import type { RefetchInstance, RequestConfig } from './types.ts';
 
+/**
+ * A middleware takes an instance and returns a new one derived with `extend()`; the instance
+ * passed in is never modified.
+ */
 type InstanceMiddleware = (instance: RefetchInstance) => RefetchInstance;
 
 export interface AuthOptions {
@@ -32,7 +36,8 @@ export function withAuth(
   options: AuthOptions = {},
 ): InstanceMiddleware {
   const origins = options.origins ?? 'baseURL';
-  return (instance) => {
+  return (parent) => {
+    const instance = parent.extend();
     instance.interceptors.request.use(async (config: RequestConfig) => {
       // `||`, not `??`: must resolve the base exactly as the request path does, or an empty
       // per-request baseURL would turn scoping off while the instance base is still used.
@@ -55,7 +60,8 @@ export function withAuth(
  * Overrides the timeout for all requests on this instance.
  */
 export function withTimeout(ms: number): InstanceMiddleware {
-  return (instance) => {
+  return (parent) => {
+    const instance = parent.extend();
     instance.interceptors.request.use((config: RequestConfig) => ({
       ...config,
       timeout: ms,
@@ -68,7 +74,8 @@ export function withTimeout(ms: number): InstanceMiddleware {
  * Merges additional headers into every outgoing request.
  */
 export function withHeaders(headers: HeadersInit): InstanceMiddleware {
-  return (instance) => {
+  return (parent) => {
+    const instance = parent.extend();
     instance.interceptors.request.use((config: RequestConfig) => ({
       ...config,
       headers: headersToObject(mergeHeaders(config.headers, headers)),
@@ -81,10 +88,7 @@ export function withHeaders(headers: HeadersInit): InstanceMiddleware {
  * Overrides the base URL for all requests on this instance.
  */
 export function withBaseURL(url: string): InstanceMiddleware {
-  return (instance) => {
-    instance.setBaseURL(url);
-    return instance;
-  };
+  return (parent) => parent.extend({ baseURL: url });
 }
 
 /**
@@ -93,7 +97,8 @@ export function withBaseURL(url: string): InstanceMiddleware {
 export function withLogging(
   logger: Pick<Console, 'log' | 'warn' | 'error'> = console,
 ): InstanceMiddleware {
-  return (instance) => {
+  return (parent) => {
+    const instance = parent.extend();
     instance.interceptors.request.use((config: RequestConfig) => {
       logger.log(`[refetch] → ${config.method?.toUpperCase() ?? 'GET'} ${config.url}`);
       return config;

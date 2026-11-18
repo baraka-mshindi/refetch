@@ -72,3 +72,83 @@ describe('middleware over the wire', () => {
     expect(result.data.headers.authorization).toBe('Bearer T');
   });
 });
+
+describe('middleware does not mutate its argument (v4)', () => {
+  const sentBy = async (api: ReturnType<typeof create>) =>
+    asOk(await api.get<EchoPayload>('/echo')).data.headers;
+
+  it('leaves the original instance without the middleware', async () => {
+    const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const base = create({ baseURL: server.baseURL });
+    const full = pipe(
+      base,
+      withAuth(() => 'T'),
+      withHeaders({ 'X-App': 'web' }),
+      withLogging(logger),
+    );
+
+    const fromBase = await sentBy(base);
+    expect(fromBase.authorization).toBeUndefined();
+    expect(fromBase['x-app']).toBeUndefined();
+    expect(logger.log).not.toHaveBeenCalled();
+
+    const fromFull = await sentBy(full);
+    expect(fromFull.authorization).toBe('Bearer T');
+    expect(fromFull['x-app']).toBe('web');
+    expect(logger.log).toHaveBeenCalled();
+  });
+
+  it('lets two clients share a base without sharing middleware', async () => {
+    const base = pipe(create({ baseURL: server.baseURL }), withHeaders({ 'X-App': 'web' }));
+    const admin = pipe(
+      base,
+      withAuth(() => 'admin'),
+    );
+    const guest = pipe(base, withHeaders({ 'X-Role': 'guest' }));
+
+    const fromAdmin = await sentBy(admin);
+    const fromGuest = await sentBy(guest);
+    expect([fromAdmin['x-app'], fromAdmin.authorization, fromAdmin['x-role']]).toEqual([
+      'web',
+      'Bearer admin',
+      undefined,
+    ]);
+    expect([fromGuest['x-app'], fromGuest.authorization, fromGuest['x-role']]).toEqual([
+      'web',
+      undefined,
+      'guest',
+    ]);
+  });
+
+  it('keeps the interceptor order of chained middleware', async () => {
+    const order: string[] = [];
+    const tag = (name: string) => (instance: ReturnType<typeof create>) => {
+      const child = instance.extend();
+      child.interceptors.request.use((config) => {
+        order.push(name);
+        return config;
+      });
+      return child;
+    };
+    const api = pipe(
+      create({ baseURL: server.baseURL }),
+      tag('first'),
+      withTimeout(5000),
+      tag('last'),
+    );
+    await api.get('/json');
+    // Request interceptors run last-registered first, exactly as when they shared one instance.
+    expect(order).toEqual(['last', 'first']);
+  });
+
+  it('withTimeout and withBaseURL also return derived instances', async () => {
+    const base = create({ baseURL: server.baseURL, timeout: 5000 });
+    const hurried = withTimeout(20)(base);
+    expect(asOk(await base.get('/slow-headers', { ms: 80 })).ok).toBe(true);
+    expect((await hurried.get('/slow-headers', { ms: 80 })).ok).toBe(false);
+
+    const elsewhere = withBaseURL('http://127.0.0.1:1')(base);
+    expect(base.getBaseURL()).toBe(server.baseURL);
+    expect(elsewhere.getBaseURL()).toBe('http://127.0.0.1:1');
+  });
+});

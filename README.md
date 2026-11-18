@@ -11,6 +11,7 @@ A modern, production-grade HTTP client built on native `fetch` — composable, c
 - **Composable, class-free API** — a factory and plain functions, no `this`, compose via `pipe()` (instances are stateful: `setHeader`, `setBaseURL` and `interceptors.use` change them in place)
 - **Interceptors** — axios-style request/response middleware with ID-based ejection
 - **Discriminated error union** (`RefetchError`) for precise narrowing per error kind
+- **Schema validation** — any Standard Schema validator (Zod, Valibot, ArkType) via `schema` / `bodySchema`, with inferred `data` types
 - **Opt-in throw mode** — `throwOnError` and `unwrap()` reject with typed error classes for TanStack Query-style callers
 - **Retry** — per-request and instance-wide, fully configurable with custom delay/condition
 - **Streaming** — raw `ReadableStream` via `stream()`
@@ -147,6 +148,7 @@ switch (response.problem) {
   case PROBLEM_CODE.CONNECTION_ERROR:
   case PROBLEM_CODE.CANCEL_ERROR:
   case PROBLEM_CODE.PARSE_ERROR:     // 2xx whose body could not be decoded
+  case PROBLEM_CODE.VALIDATION_ERROR: // body rejected by a schema
   case PROBLEM_CODE.UNKNOWN_ERROR:
 }
 ```
@@ -211,6 +213,7 @@ Each `RefetchError` kind has its own class, all extending `RefetchResponseError`
 | `network` | `RefetchNetworkError` | `cause` is the `NetworkError` |
 | `cancel` | `RefetchCancelError` | |
 | `parse` | `RefetchParseError` | `data` is the raw text |
+| `validation` | `RefetchValidationError` | `issues` from the validator; `data` is the unvalidated body |
 | `unknown` | `RefetchUnknownError` | for example a throwing interceptor |
 
 ```typescript
@@ -522,6 +525,37 @@ const api = create({
   stringifyJson: (value) =>
     JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)),
 });
+```
+
+## Schema Validation
+
+Pass any [Standard Schema](https://standardschema.dev) validator (Zod, Valibot, ArkType, Effect Schema…) as `schema` and the response body is validated at the boundary. `data` is the schema's output and its type is inferred, so no generic is needed. refetch only uses the Standard Schema interface, so it still has no runtime dependencies.
+
+```typescript
+import { z } from 'zod';
+
+const User = z.object({ id: z.number(), name: z.string() });
+
+const response = await api.get('/users/1', undefined, { schema: User });
+if (response.ok) {
+  response.data.name; // typed as string
+} else if (response.error.kind === 'validation') {
+  response.error.issues; // [{ message, path }]
+  response.data;         // the body as received, for logging
+}
+```
+
+- A mismatch is an error response: `problem: VALIDATION_ERROR`, `error.kind === 'validation'`, with `status`, `headers` and the unvalidated `data` kept. In throw mode it is a `RefetchValidationError`.
+- Validation runs after response interceptors (so they can normalise first) and before monitors, on successful responses only. Error bodies are not validated.
+- Validation failures are never retried, whatever `retry.condition` says.
+- Async validators are supported. A validator that throws is reported as `kind: 'unknown'`, not as a validation failure.
+- An explicit generic still wins: `api.get<Custom>(url, undefined, { schema })` is typed as `Custom`.
+
+`bodySchema` validates the outgoing `data` before it is serialised. The schema's output is what gets sent, and a mismatch fails with `kind: 'validation'` without a network call:
+
+```typescript
+const NewUser = z.object({ name: z.string().trim().min(1) });
+await api.post('/users', { name: '  Ada  ' }, { schema: User, bodySchema: NewUser }); // sends {"name":"Ada"}
 ```
 
 ## Sub-path Exports

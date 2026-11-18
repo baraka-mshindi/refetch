@@ -1,6 +1,13 @@
 import { getBodyContentType, prepareRequestBody, shouldHaveBody } from './body';
 import { DEFAULT_HEADERS } from './constants';
-import { CancelError, NetworkError, ParseError, TimeoutError, toResponseError } from './errors';
+import {
+  CancelError,
+  NetworkError,
+  ParseError,
+  TimeoutError,
+  toResponseError,
+  ValidationError,
+} from './errors';
 import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch';
 import { headersToObject, mergeHeaders } from './headers';
 import { createInterceptorManager } from './interceptors';
@@ -13,6 +20,7 @@ import {
   shouldRetry,
   sleep,
 } from './retry';
+import type { StandardSchemaV1 } from './schema';
 import type {
   ApiResponse,
   AsyncRequestTransform,
@@ -47,6 +55,8 @@ const REFETCH_KEYS = [
   'responseType',
   'parseJson',
   'stringifyJson',
+  'schema',
+  'bodySchema',
   'signal',
   'headers',
 ] as const;
@@ -55,6 +65,13 @@ function toRequestInit(config: RequestConfig): RequestInit {
   const init: Record<string, unknown> = { ...config };
   for (const key of REFETCH_KEYS) delete init[key];
   return init as RequestInit;
+}
+
+/** Runs a Standard Schema validator; resolves with its output or throws `ValidationError`. */
+async function validate<T>(schema: StandardSchemaV1, value: unknown): Promise<T> {
+  const result = await schema['~standard'].validate(value);
+  if (result.issues) throw new ValidationError(result.issues);
+  return result.value as T;
 }
 
 function isShortCircuit(value: unknown): value is ShortCircuit {
@@ -228,8 +245,27 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
   // ─── Single attempt ─────────────────────────────────────────────────────
 
-  async function finalize<T>(response: ApiResponse<T>): Promise<ApiResponse<T>> {
-    const finalResponse = await applyResponseInterceptors(response);
+  /** Response interceptors, then `schema` validation of a successful body, then monitors. */
+  async function finalize<T>(
+    response: ApiResponse<T>,
+    schema?: StandardSchemaV1,
+  ): Promise<ApiResponse<T>> {
+    let finalResponse = await applyResponseInterceptors(response);
+    if (schema && finalResponse.ok) {
+      try {
+        finalResponse = { ...finalResponse, data: await validate<T>(schema, finalResponse.data) };
+      } catch (error) {
+        // Only a schema mismatch keeps the 2xx status; a crashing validator is an unknown error.
+        const failure = normalizeErrorResponse<T>(
+          toError(error),
+          error instanceof ValidationError ? finalResponse.response : undefined,
+          finalResponse.duration,
+        );
+        failure.data = finalResponse.data;
+        failure.request = finalResponse.request;
+        finalResponse = failure;
+      }
+    }
     notifyMonitors(finalResponse);
     return finalResponse;
   }
@@ -345,7 +381,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         apiResponse.data = data as T;
       }
       apiResponse.request = resolved;
-      return await finalize(apiResponse);
+      return await finalize(apiResponse, config.schema);
     } catch (error) {
       const duration = Date.now() - startTime;
       const failure = resolveFailure(error, attempt.signal, transportFailed);
@@ -394,20 +430,32 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
     // Request interceptors run once before any retry. They never throw to the caller: a
     // failing interceptor (e.g. a token fetch) produces an error response like any other failure.
+    // A failure before any network call: attempt 0, no status.
+    const failEarly = (error: unknown): Promise<ApiResponse<T>> => {
+      const failure = normalizeErrorResponse<T>(toError(error), undefined, Date.now() - startTime);
+      failure.request = describeRequest(config, 0);
+      return finalize(failure);
+    };
     let intercepted: RequestInterceptorResult;
     try {
       intercepted = await applyRequestInterceptors(config);
     } catch (error) {
-      const failure = normalizeErrorResponse<T>(toError(error), undefined, Date.now() - startTime);
-      failure.request = describeRequest(config, 0);
-      return finalize(failure);
+      return failEarly(error);
     }
     if (isShortCircuit(intercepted)) {
       const shortCircuited = intercepted.response as ApiResponse<T>;
       shortCircuited.request ??= describeRequest(config, 0);
-      return finalize(shortCircuited);
+      return finalize(shortCircuited, config.schema);
     }
     config = intercepted;
+
+    if (config.bodySchema) {
+      try {
+        config = { ...config, data: await validate(config.bodySchema, config.data) };
+      } catch (error) {
+        return failEarly(error);
+      }
+    }
 
     const retryConfig = normalizeRetryConfig(config.retry ?? state.config.retry);
     const deadline = createDeadline(totalTimeout);

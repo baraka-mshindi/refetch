@@ -19,6 +19,7 @@ import {
   type ResponseBodyType,
   type RetryConfig,
   type ShortCircuit,
+  type StandardSchemaV1,
   type ThrowOnError,
   unwrap,
 } from '../../src/index';
@@ -119,7 +120,7 @@ describe('public API types', () => {
 
   it('exposes RefetchError as a discriminated union on kind', () => {
     expectTypeOf<RefetchError['kind']>().toEqualTypeOf<
-      'network' | 'timeout' | 'cancel' | 'http' | 'parse' | 'unknown'
+      'network' | 'timeout' | 'cancel' | 'http' | 'parse' | 'validation' | 'unknown'
     >();
     expectTypeOf<Extract<RefetchError, { kind: 'http' }>>().toEqualTypeOf<{
       kind: 'http';
@@ -193,5 +194,37 @@ describe('public API types', () => {
     expectTypeOf<'QUERY'>().toExtend<HttpMethod>();
     expectTypeOf<'PROPFIND'>().toExtend<HttpMethod>();
     api.delete('/users', undefined, { data: { ids: [1] } });
+  });
+
+  it('infers data from config.schema and keeps the explicit generic usable', () => {
+    type Schema<T> = StandardSchemaV1<unknown, T>;
+    const userSchema = {} as Schema<User>;
+
+    expectTypeOf(api.get('/users/1', undefined, { schema: userSchema })).resolves.toEqualTypeOf<
+      ApiResponse<User>
+    >();
+    expectTypeOf(api.post('/users', { name: 'x' }, { schema: userSchema })).resolves.toEqualTypeOf<
+      ApiResponse<User>
+    >();
+    expectTypeOf(api.query('/users/search', {}, { schema: userSchema })).resolves.toEqualTypeOf<
+      ApiResponse<User>
+    >();
+    expectTypeOf(api.any({ url: '/users/1', schema: userSchema })).resolves.toEqualTypeOf<
+      ApiResponse<User>
+    >();
+
+    // No schema: unchanged.
+    expectTypeOf(api.get('/users/1')).resolves.toEqualTypeOf<ApiResponse<unknown>>();
+    expectTypeOf(api.get('/users/1', undefined, { timeout: 1 })).resolves.toEqualTypeOf<
+      ApiResponse<unknown>
+    >();
+    // An explicit generic wins over the schema.
+    expectTypeOf(
+      api.get<{ custom: true }>('/users/1', undefined, { schema: userSchema }),
+    ).resolves.toEqualTypeOf<ApiResponse<{ custom: true }>>();
+
+    expectTypeOf<Extract<RefetchError, { kind: 'validation' }>['issues']>().toEqualTypeOf<
+      ReadonlyArray<StandardSchemaV1.Issue>
+    >();
   });
 });

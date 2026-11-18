@@ -15,9 +15,11 @@ export {
   RefetchResponseError,
   RefetchTimeoutError,
   RefetchUnknownError,
+  RefetchValidationError,
   TimeoutError,
   toResponseError,
   unwrap,
+  ValidationError,
 } from './errors';
 export { fetchWithTimeout } from './fetch';
 export { headersToObject, mergeHeaders, setRequestHeader } from './headers';
@@ -44,6 +46,7 @@ export {
   shouldRetry,
   sleep,
 } from './retry';
+export type { StandardSchemaV1 } from './schema';
 export type {
   ApiErrorResponse,
   ApiOkResponse,
@@ -70,6 +73,7 @@ export type {
   ResponseTransform,
   RetryConfig,
   RetryContext,
+  SchemaData,
   ShortCircuit,
   StringifyJson,
   ThrowOnError,

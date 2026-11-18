@@ -75,12 +75,15 @@ function errorKind(response: ApiResponse<unknown>): string | undefined {
   return (response as Partial<ApiErrorResponse<unknown>>).error?.kind;
 }
 
-/** Cancelled requests and total-timeout expiries are never retried, whatever `condition` says. */
+/**
+ * Cancelled requests, total-timeout expiries and schema validation failures are never
+ * retried, whatever `condition` says.
+ */
 function isUnretryable(response: ApiResponse<unknown>): boolean {
   if (response.ok) return false;
   const error = (response as Partial<ApiErrorResponse<unknown>>).error;
   if (!error) return false;
-  if (error.kind === 'cancel') return true;
+  if (error.kind === 'cancel' || error.kind === 'validation') return true;
   // Duck-typed so this module stays free of runtime imports (see TimeoutError.scope).
   return error.kind === 'timeout' && (error.cause as { scope?: unknown }).scope === 'total';
 }

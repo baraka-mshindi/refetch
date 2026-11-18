@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`@mshindi-labs/refetch` (3.x) is a production-grade HTTP client built on native `fetch`. It is a class-free, composable TypeScript design (a `create()` factory returning a stateful instance, plus plain functions) — 14 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
+`@mshindi-labs/refetch` (3.x) is a production-grade HTTP client built on native `fetch`. It is a class-free, composable TypeScript design (a `create()` factory returning a stateful instance, plus plain functions) — 15 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
 
 ## Development Commands
 
@@ -40,6 +40,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 | `retry.ts` | `normalizeRetryConfig`, `getRetryDelay`, `exponentialBackoff`, `retryAfterDelay`, `shouldRetry`, `sleep` (no runtime imports) |
 | `middleware.ts` | `withAuth`, `withTimeout`, `withHeaders`, `withBaseURL`, `withLogging` |
 | `pipe.ts` | `pipe()` HOF |
+| `schema.ts` | Vendored `StandardSchemaV1` interface, types only (no runtime code) |
 | `refetch.ts` | `create()` factory — pipeline, retry loop, stream(), transform aliases |
 | `index.ts` | All public exports |
 
@@ -138,6 +139,7 @@ Default non-retryable status codes: `{400, 401, 403, 404, 422}`; `statusCodes` r
 - `NetworkError` (wraps the `TypeError` thrown by `fetch()`; extends `TypeError`; `code` read from the cause chain) → `{ kind: 'network' }`; `CONNECTION_ERROR` when `code` is a connection code (`ECONNREFUSED`, `ENOTFOUND`, …), else `NETWORK_ERROR`
 - Any non-2xx status (4xx, 5xx, and 1xx/3xx/0 under `redirect: 'manual'`) → `{ kind: 'http', status, statusText }`
 - `ParseError` (thrown by `parseResponseBody`; `contentType`, `raw`, `cause`) → `{ kind: 'parse', contentType, cause }` / `PARSE_ERROR`
+- `ValidationError` (thrown by `validate()` in `refetch.ts` when a `schema` / `bodySchema` reports issues) → `{ kind: 'validation', issues, cause }` / `VALIDATION_ERROR`; status and headers of the 2xx are kept
 - Everything else → `{ kind: 'unknown', cause }`
 
 Classification is by origin first (abort reason, `fetch()` throwing) and by message only as a fallback for foreign errors.
@@ -151,6 +153,9 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- `finalize(response, schema?)` order is fixed: response interceptors → `schema` validation (ok responses only) → monitors. `bodySchema` runs in `send()` after request interceptors and before the retry loop; its failure is an attempt-0 error response
+- Validation failures are never retried (`isUnretryable` in `retry.ts`, duck-typed on `kind`); a validator that throws is `kind: 'unknown'`
+- Response data inference uses one signature per method with `SchemaData<T, C>`, not overloads: overloads break instantiation expressions such as `api.post<User, Dto>`
 - GET and HEAD never send a body; DELETE sends one only when `config.data` is set; there is no `trace()` because fetch forbids TRACE
 - `DEFAULT_HEADERS` has **only** `Accept` — never `Content-Type`
 - `RefetchError` is defined in `types.ts`; `buildRefetchError` is in `errors.ts`

@@ -18,6 +18,7 @@ npm run check:package # arethetypeswrong + publint on the packed tarball
 npm run size          # size-limit budgets for dist/*.js
 npm run smoke         # scripts/smoke.mjs against dist/ (CI also runs it under Bun and Deno)
 npm run ci            # all of the above in CI order
+npm run docs:dev      # VitePress site (docs/) with live reload; docs:build produces docs/.vitepress/dist
 ```
 
 Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidelines"). Known bugs are tracked as `it.fails('… (known bug #N)')` tests that assert the correct behaviour: flip them to `it` when fixing the bug.
@@ -155,6 +156,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- The docs site (`docs/`, VitePress) only includes `README.md`, `SECURITY.md` and `CHANGELOG.md`; write documentation in those files, not in `docs/`. The README comparison table is dated: re-check it against `npm view <pkg>` and each README before a minor release
 - `extend(overrides)` builds a new instance through `create()`: object overrides merge (headers via `mergeHeaders`, `retry` field by field, signals via `AbortSignal.any`), a function result replaces; interceptors and monitors are re-registered in insertion order, so no mutable state is shared. Middleware HOFs still mutate their argument until v4 (#56)
 - `observeBytes(stream, limit?, onBytes?)` in `response.ts` is the one byte counter: it enforces `maxResponseSize`, drives `onDownloadProgress`, and counts uploads. `reportProgress()` in `refetch.ts` adapts user callbacks and swallows (logs) their errors
 - Upload progress serialises the body through `new Response(body)` and streams the resulting Blob when `supportsRequestStreams()` and the request is not `keepalive` / `no-cors`; the multipart Content-Type is read from the Response **header**, never from `Blob.type` (lower-cased, which would corrupt the boundary). Otherwise the body is sent unchanged and one 100 % call is made after the response arrives

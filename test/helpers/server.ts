@@ -170,6 +170,14 @@ export async function startTestServer(): Promise<TestServer> {
         await wait(20);
         res.write('chunk2');
         return res.end();
+      case '/sse':
+        res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8' });
+        res.write('data: one\n\n');
+        await wait(20);
+        res.write('data: two\n\n');
+        return res.end();
+      case '/big-json':
+        return raw(res, 200, 'application/json', '{"id":9007199254740993}');
       default:
         return json(res, 404, { error: 'not found' });
     }

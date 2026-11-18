@@ -17,7 +17,7 @@ A modern, production-grade HTTP client built on native `fetch` — composable, c
 - **Cancellation** — `createCancelToken()` wraps `AbortController`
 - **Middleware HOFs** — `withAuth`, `withTimeout`, `withLogging`, `withHeaders`, `withBaseURL`
 - **Full body support** — JSON, `FormData`, `URLSearchParams`, `Blob`, `ArrayBuffer`, `ReadableStream`
-- **Full response parsing** — JSON, `+json` variants, form-encoded, binary, text, empty bodies
+- **Full response parsing** — JSON, `+json` variants, form-encoded, binary, text, empty bodies; `responseType` override and pluggable `parseJson` / `stringifyJson`
 - **Tree-shakeable** — sub-path exports for retry, middleware, and pipe
 - **Zero runtime dependencies**
 
@@ -455,11 +455,60 @@ await api.post('/profile/avatar', form);
 | `application/json` | `T` via `JSON.parse` |
 | `application/*+json` (e.g. `vnd.api+json`, `ld+json`, `problem+json`) | `T` via `JSON.parse` |
 | `application/x-www-form-urlencoded` | `Record<string, string>` via `URLSearchParams` |
+| `text/event-stream` | `ReadableStream` (unread; see `responseType: 'stream'`) |
 | `text/*`, `application/xml`, `application/xhtml+xml` | `string` |
 | `image/*`, `audio/*`, `video/*` | `Blob` |
 | `application/pdf`, `application/zip`, `application/gzip`, Office formats, etc. | `Blob` |
 | 204 / 304 / `content-length: 0` | `null` |
 | Anything else | `string` (fallback) |
+
+### Overriding the parser: `responseType`
+
+Set `responseType` per request (or as an instance default) to read the body one way whatever `Content-Type` the server sends:
+
+| `responseType` | `data` |
+|---|---|
+| `'auto'` (default) | chosen from `Content-Type`, as in the table above |
+| `'json'` | parsed JSON; a body that is not JSON is a `PARSE_ERROR` with the raw text in `data` |
+| `'text'` | `string` |
+| `'blob'` | `Blob` |
+| `'arrayBuffer'` | `ArrayBuffer` |
+| `'bytes'` | `Uint8Array` |
+| `'stream'` | the unread `ReadableStream<Uint8Array>` |
+| `'none'` | `null`; the body is discarded without being read |
+
+```typescript
+// JSON served as text/plain
+const res = await api.get<Config>('/config.txt', undefined, { responseType: 'json' });
+
+// Download as bytes
+const file = await api.get<Uint8Array>('/report.pdf', undefined, { responseType: 'bytes' });
+
+// Stream a POST response through the normal pipeline (interceptors, monitors, throwOnError)
+const chat = await api.post<ReadableStream<Uint8Array>>('/chat', body, { responseType: 'stream' });
+```
+
+Notes:
+
+- The generic is not inferred from `responseType`; pass the matching type yourself.
+- With `'stream'` (and for `text/event-stream` under `'auto'`), `timeout` covers the wait for headers only, the request `signal` stays linked to the body so aborting it cancels the download, and a successful response is never retried. A failed request is still read normally, so `data` holds the parsed error body.
+- For any type other than `'auto'` and `'json'`, `Accept` is sent as `*/*` unless you set one.
+- `application/x-ndjson` is still buffered as text under `'auto'`; use `responseType: 'stream'` to read it incrementally.
+
+### Custom JSON: `parseJson` and `stringifyJson`
+
+Both can be set on the instance or per request. `parseJson` replaces `JSON.parse` for success and error bodies and receives `{ response, request }`; if it throws, the result is a `PARSE_ERROR` with the raw text in `data`. `stringifyJson` replaces `JSON.stringify` for plain object and array bodies (strings, `FormData` and other native bodies are left alone).
+
+```typescript
+import sjson from 'secure-json-parse';
+
+const api = create({
+  baseURL,
+  parseJson: (text) => sjson.parse(text),                 // rejects __proto__ / constructor keys
+  stringifyJson: (value) =>
+    JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)),
+});
+```
 
 ## Sub-path Exports
 

@@ -44,6 +44,9 @@ const REFETCH_KEYS = [
   'retry',
   'context',
   'throwOnError',
+  'responseType',
+  'parseJson',
+  'stringifyJson',
   'signal',
   'headers',
 ] as const;
@@ -243,6 +246,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       timeout: resolveTimeout(config.timeout, state.config.timeout),
     });
     let transportFailed = false;
+    let streaming = false;
 
     try {
       const method = config.method ?? 'GET';
@@ -252,10 +256,22 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         config.params,
         config.paramsSerializer,
       );
-      const body = shouldHaveBody(method) ? prepareRequestBody(config.data) : undefined;
+      const body = shouldHaveBody(method)
+        ? prepareRequestBody(config.data, config.stringifyJson)
+        : undefined;
 
       // Always merge Accept from defaults; Content-Type is set per body type below
       const headers = mergeHeaders(DEFAULT_HEADERS, config.headers);
+      const { responseType } = config;
+      // A forced non-JSON reader should not advertise JSON, unless the caller chose an Accept.
+      if (
+        responseType &&
+        responseType !== 'auto' &&
+        responseType !== 'json' &&
+        !new Headers(config.headers).has('Accept')
+      ) {
+        headers.set('Accept', '*/*');
+      }
       const bodyContentType = getBodyContentType(body);
       if (bodyContentType === null) {
         // FormData: browser must set Content-Type with multipart boundary
@@ -287,7 +303,18 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       // The same signal bounds the body read, so a timeout or cancel here surfaces as such.
       let data: unknown;
       try {
-        data = await parseResponseBody<T>(response);
+        data = await parseResponseBody<T>(response, {
+          // A failed request is read normally so the error body stays inspectable.
+          responseType: response.ok || responseType !== 'stream' ? responseType : 'auto',
+          parseJson: config.parseJson,
+          request: resolved,
+        });
+        if (isStream(data)) {
+          // The body is still to be read by the caller: stop the timeout (it covered the
+          // headers) but keep the signal linked so an abort still cancels the download.
+          streaming = true;
+          attempt.clearTimeout();
+        }
       } catch (error) {
         if (attempt.signal.aborted) throw abortReasonToError(attempt.signal.reason);
         if (error instanceof ParseError) {
@@ -326,7 +353,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       apiResponse.request = resolved;
       return await finalize(apiResponse);
     } finally {
-      attempt.dispose();
+      if (!streaming) attempt.dispose();
     }
   }
 
@@ -392,9 +419,10 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       extraSignals: deadline.signal ? [deadline.signal] : [],
     });
 
+    // Assigned by the first loop iteration; only the `finally` can see it unset.
+    let lastResponse!: ApiResponse<T>;
     try {
       let attempt = 0;
-      let lastResponse!: ApiResponse<T>;
 
       do {
         if (attempt > 0 && retryConfig) {
@@ -436,7 +464,8 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
 
       return lastResponse;
     } finally {
-      call.dispose();
+      // A streamed body is still being read: keep the caller's signal linked to it.
+      if (!isStream((lastResponse as ApiResponse<T> | undefined)?.data)) call.dispose();
       deadline.dispose();
     }
   }

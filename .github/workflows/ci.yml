@@ -73,8 +73,8 @@ jobs:
           retention-days: 1
 
   smoke:
-    # Node 20 is the minimum supported runtime (engines); the toolchain (tsdown, Vitest 5)
-    # needs Node 22+, so smoke jobs consume the dist built above instead of building.
+    # Smoke jobs consume the dist built above instead of building, so each runtime is checked
+    # against the artifact that would be published. Node 22 is the minimum (engines).
     needs: build
     name: Smoke (${{ matrix.runtime }})
     runs-on: ubuntu-latest
@@ -82,8 +82,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runtime: node 20
-            node: 20
+          - runtime: node 22
+            node: 22
           - runtime: node 24
             node: 24
           - runtime: bun

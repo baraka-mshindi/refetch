@@ -3,24 +3,6 @@ import { DEFAULT_TIMEOUT } from '../../src/constants';
 import { CancelError, TimeoutError } from '../../src/errors';
 import { createAttemptSignal, fetchWithTimeout, resolveTimeout } from '../../src/fetch';
 
-const withoutAbortSignalAny = () => {
-  const original = AbortSignal.any;
-  beforeEach(() => {
-    Object.defineProperty(AbortSignal, 'any', {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
-  });
-  afterEach(() => {
-    Object.defineProperty(AbortSignal, 'any', {
-      value: original,
-      configurable: true,
-      writable: true,
-    });
-  });
-};
-
 describe('resolveTimeout', () => {
   it('falls back to the default when nothing is configured', () => {
     expect(resolveTimeout(undefined)).toBe(DEFAULT_TIMEOUT);
@@ -107,38 +89,6 @@ describe('createAttemptSignal', () => {
     controller.abort();
     expect(attempt.signal.aborted).toBe(true);
     attempt.dispose();
-  });
-
-  describe('without AbortSignal.any', () => {
-    withoutAbortSignalAny();
-
-    it('combines signals with listeners and removes them on dispose', () => {
-      const controller = new AbortController();
-      const remove = vi.spyOn(controller.signal, 'removeEventListener');
-      const attempt = createAttemptSignal({ signal: controller.signal, timeout: false });
-      expect(attempt.signal.aborted).toBe(false);
-      attempt.dispose();
-      expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
-      controller.abort();
-      expect(attempt.signal.aborted).toBe(false);
-    });
-
-    it('honours an already-aborted caller signal', () => {
-      const controller = new AbortController();
-      controller.abort(new CancelError('pre'));
-      const attempt = createAttemptSignal({ signal: controller.signal, timeout: 100 });
-      expect(attempt.signal.reason).toBeInstanceOf(CancelError);
-      attempt.dispose();
-    });
-
-    it('forwards aborts while attached', () => {
-      const controller = new AbortController();
-      const attempt = createAttemptSignal({ signal: controller.signal, timeout: false });
-      controller.abort(new CancelError('x'));
-      expect(attempt.signal.aborted).toBe(true);
-      expect((attempt.signal.reason as Error).message).toBe('x');
-      attempt.dispose();
-    });
   });
 });
 

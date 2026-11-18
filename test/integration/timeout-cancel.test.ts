@@ -143,29 +143,6 @@ describe('cancellation', () => {
     expect(server.hits('/status/500')).toBe(1);
   });
 
-  it('works end-to-end without AbortSignal.any (fallback path)', async () => {
-    const original = AbortSignal.any;
-    Object.defineProperty(AbortSignal, 'any', {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
-    try {
-      const controller = new AbortController();
-      controller.abort();
-      const pre = await api.get('/json', undefined, { signal: controller.signal });
-      expect(asError(pre).error.kind).toBe('cancel');
-      const timed = asError(await api.get('/slow-headers?ms=800', undefined, { timeout: 50 }));
-      expect(timed.error.kind).toBe('timeout');
-    } finally {
-      Object.defineProperty(AbortSignal, 'any', {
-        value: original,
-        configurable: true,
-        writable: true,
-      });
-    }
-  });
-
   it('rejects immediately when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();

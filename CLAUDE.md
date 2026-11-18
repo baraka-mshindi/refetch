@@ -36,7 +36,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 | `headers.ts` | `mergeHeaders`, `headersToObject`, `setRequestHeader` |
 | `body.ts` | `prepareRequestBody`, `shouldHaveBody`, `getBodyContentType`, `JSON_LIKE_RE` |
 | `response.ts` | `parseResponseBody`, `normalizeSuccessResponse`, `normalizeErrorResponse` |
-| `fetch.ts` | `resolveTimeout`, `createAttemptSignal` (caller signal + extra signals + timeout via `AbortSignal.any`, listener fallback), `fetchWithTimeout` |
+| `fetch.ts` | `resolveTimeout`, `createAttemptSignal` (caller signal + extra signals + timeout via `AbortSignal.any`), `fetchWithTimeout` |
 | `interceptors.ts` | `createInterceptorManager` — Map-based, auto-increment IDs, `getAll()` |
 | `retry.ts` | `normalizeRetryConfig`, `getRetryDelay`, `exponentialBackoff`, `retryAfterDelay`, `shouldRetry`, `sleep` (no runtime imports) |
 | `middleware.ts` | `withAuth`, `withTimeout`, `withHeaders`, `withBaseURL`, `withLogging` |
@@ -156,6 +156,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- Runtime baseline is Node 22 and `AbortSignal.any`; there is no listener fallback. The package stays dual ESM + CJS in 4.x (decision recorded in #54)
 - `ApiResponse<T>` is a union: never widen it back to an interface with `ok: boolean`. `normalizeSuccessResponse` returns `ApiOkResponse<T>`, `normalizeErrorResponse` returns `ApiErrorResponse`; `retry.ts` still tolerates hand-built error responses without `error` at runtime
 - Source must stay loadable by Node's type stripping: `erasableSyntaxOnly` is on (no enums, no parameter properties, no runtime namespaces) and relative imports in `src/` carry the `.ts` extension (`allowImportingTsExtensions`; tsdown rewrites them). `PROBLEM_CODE` is an `as const` object with a `ProblemCode` union
 - The docs site (`docs/`, VitePress) only includes `README.md`, `SECURITY.md` and `CHANGELOG.md`; write documentation in those files, not in `docs/`. The README comparison table is dated: re-check it against `npm view <pkg>` and each README before a minor release

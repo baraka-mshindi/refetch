@@ -17,7 +17,7 @@ Thank you for your interest in contributing to `@mshindi-labs/refetch`! This doc
 
 ### Prerequisites
 
-- Node.js 22.18 or higher to develop (tsdown, Vitest 5 and size-limit need it). The published package supports Node 20.19+ (`engines`); CI runs the suite on Node 22, 24 and 26 and the runtime smoke on Node 20 and 24, Bun and Deno
+- Node.js 22.18 or higher to develop (tsdown, Vitest 5 and size-limit need it). The published package supports Node 22+ (`engines`); CI runs the suite on Node 22, 24 and 26 and the runtime smoke on Node 22 and 24, Bun and Deno
 - npm (comes with Node.js)
 - Git
 

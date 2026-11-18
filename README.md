@@ -78,9 +78,8 @@ await api.any({ method: 'PROPFIND', url: '/dav', headers: { Depth: '1' } });
 | Method | Second argument | Body |
 |---|---|---|
 | `get`, `head` | query params | never (fetch rejects a body on GET / HEAD) |
-| `delete`, `options` | query params | only when `config.data` is set |
+| `delete`, `options`, `link`, `unlink` | query params | only when `config.data` is set |
 | `post`, `put`, `patch`, `query` | body | yes |
-| `link`, `unlink` | body | yes |
 | `any({ method, … })` | — | `config.data`, by the rules above |
 
 `QUERY` gets its `Content-Type` from the body like any other request (`application/json` for objects); set the header yourself for other query languages. It is safe to retry, and the retry policy treats it like any other method. `TRACE` has no helper: `fetch` refuses to send it.

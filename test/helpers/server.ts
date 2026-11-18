@@ -195,6 +195,40 @@ export async function startTestServer(): Promise<TestServer> {
         }
         return res.end();
       }
+      case '/sse-chat': {
+        // Awkward on purpose: a comment, CRLF frames, multi-line data and mid-field chunk splits.
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(': keep-alive\n\n');
+        res.write(
+          `event: request\ndata: ${body}\n\nevent: accept\ndata: ${req.headers.accept}\n\n`,
+        );
+        res.write('id: 1\r\ndata: {"delta":"Hel"}\r\n\r');
+        await wait(10);
+        res.write('\ndata: line one\nda');
+        await wait(10);
+        res.write('ta: line two\n\nretry: 3000\ndata: [DONE]\n\n');
+        return res.end('data: never dispatched');
+      }
+      case '/sse-forever': {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        let tick = 0;
+        while (!res.destroyed && !closing.signal.aborted) {
+          res.write(`data: ${tick++}\n\n`);
+          await wait(10);
+        }
+        return;
+      }
+      case '/sse-stall':
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write('data: first\n\n');
+        await wait(5000);
+        return res.end();
+      case '/ndjson':
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+        res.write('{"n":1}\n{"n"');
+        await wait(10);
+        res.write(':2}\r\n\n');
+        return res.end('{"n":3}');
       case '/big-json':
         return raw(res, 200, 'application/json', '{"id":9007199254740993}');
       default:

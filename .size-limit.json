@@ -22,5 +22,11 @@
     "path": "dist/pipe.js",
     "limit": "300 B",
     "gzip": true
+  },
+  {
+    "name": "stream (ESM)",
+    "path": "dist/stream.js",
+    "limit": "1.2 KB",
+    "gzip": true
   }
 ]

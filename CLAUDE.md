@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`@mshindi-labs/refetch` (3.x) is a production-grade HTTP client built on native `fetch`. It is a class-free, composable TypeScript design (a `create()` factory returning a stateful instance, plus plain functions) — 15 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
+`@mshindi-labs/refetch` (3.x) is a production-grade HTTP client built on native `fetch`. It is a class-free, composable TypeScript design (a `create()` factory returning a stateful instance, plus plain functions) — 16 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
 
 ## Development Commands
 
 ```bash
-npm run build         # tsdown (Rolldown) — produces dist/ (ESM + CJS + .d.ts/.d.cts for 4 entry points; needs Node ≥ 22.18)
+npm run build         # tsdown (Rolldown) — produces dist/ (ESM + CJS + .d.ts/.d.cts for 5 entry points; needs Node ≥ 22.18)
 npm run typecheck     # tsc --noEmit for src/ and for the test suite
 npm test              # Vitest: unit + integration (real node:http server) + type tests
 npm run test:coverage # same, with V8 coverage thresholds (80 % lines)
@@ -40,6 +40,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 | `retry.ts` | `normalizeRetryConfig`, `getRetryDelay`, `exponentialBackoff`, `retryAfterDelay`, `shouldRetry`, `sleep` (no runtime imports) |
 | `middleware.ts` | `withAuth`, `withTimeout`, `withHeaders`, `withBaseURL`, `withLogging` |
 | `pipe.ts` | `pipe()` HOF |
+| `stream.ts` | `/stream` sub-path: `parseSse`, `parseNdjson` (async generators over a byte stream), `sse()`, `ndjson()` helpers that call `api.stream()`; no runtime imports |
 | `schema.ts` | Vendored `StandardSchemaV1` interface, types only (no runtime code) |
 | `refetch.ts` | `create()` factory — pipeline, retry loop, stream(), transform aliases |
 | `index.ts` | All public exports |
@@ -54,6 +55,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 | `src/retry.ts` | `@mshindi-labs/refetch/retry` |
 | `src/middleware.ts` | `@mshindi-labs/refetch/middleware` |
 | `src/pipe.ts` | `@mshindi-labs/refetch/pipe` |
+| `src/stream.ts` | `@mshindi-labs/refetch/stream` |
 
 ### Request/Response Pipeline (`refetch.ts`)
 
@@ -163,7 +165,8 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 - `RefetchError` is defined in `types.ts`; `buildRefetchError` is in `errors.ts`
 - When the parsed `data` is a `ReadableStream` (`responseType: 'stream'`, or SSE under `'auto'`), `executeSingleRequest` clears the attempt timeout but does not dispose the attempt or call signals, so the caller's abort still reaches the body; a failed request with `responseType: 'stream'` is parsed as `'auto'`
 - `responseType`, `parseJson`, `stringifyJson` live on both `RefetchConfig` and `RequestConfig` (`BodyOptions`) and are in `REFETCH_KEYS` so they never reach `fetch()`
-- `stream()` returns `ApiResponse<ReadableStream<T>>` — no body parsing, no retry
+- `stream()` returns `ApiResponse<ReadableStream<T>>` and is a thin wrapper over `request()` with `responseType: 'stream'` and `retry: 1`: any method / `config.data`, response interceptors and monitors run, no retry, error bodies are parsed
+- `src/stream.ts` has no runtime imports (like `retry.ts`); its idle timeout throws a plain `Error` named `TimeoutError` and NDJSON failures throw `SyntaxError`, so it never pulls `errors.ts` into the sub-path
 - Request interceptors run **once** before the retry loop; response interceptors run **per attempt**
 - Cancelled requests, `totalTimeout` expiries, parse failures (by default) and `ReadableStream`-bodied requests are never retried; `timeout: 0` / `false` disables the per-attempt timeout
 - `request()` and `stream()` resolve by default; they reject only when `throwOnError` (instance or per request) says so, with a `RefetchResponseError` subclass, and only after retries, response interceptors and monitors have run (`settle()` in `refetch.ts`)

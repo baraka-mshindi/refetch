@@ -98,41 +98,58 @@ const api = create({ baseURL, paramsSerializer: (params) => qs.stringify(params,
 
 ## Response Format
 
-Every request returns `ApiResponse<T>` — the shape is identical whether the request succeeded or failed:
+Every request resolves to `ApiResponse<T>`, a discriminated union. Check `ok` and TypeScript narrows the rest:
 
 ```typescript
-interface ApiResponse<T> {
-  ok: boolean;              // true for 200–299
-  problem: PROBLEM_CODE | null;
-  originalError: Error | null;
-  data?: T;
-  status?: number;
-  headers?: Record<string, string>;
-  duration?: number;        // milliseconds
-  response?: Response;      // raw fetch Response
-  request?: ResolvedRequest; // url, method, headers as sent (credentials redacted), body, config, attempt
+type ApiResponse<T> = ApiOkResponse<T> | ApiErrorResponse;
+
+interface ApiOkResponse<T> {
+  ok: true;
+  problem: null;
+  originalError: null;
+  data: T;
+  status: number;
+  // + the shared fields below
 }
 
-// When ok === false, the error field is also present:
-interface ApiErrorResponse<T> extends ApiResponse<T> {
+interface ApiErrorResponse<E = unknown> {
   ok: false;
-  problem: PROBLEM_CODE;
-  error: RefetchError;      // discriminated union — see Error Handling
+  problem: ProblemCode;
+  error: RefetchError;         // discriminated union — see Error Handling
+  originalError: Error | null;
+  data?: E;                    // the error body; unknown unless you assert a type
+  // + the shared fields below
+}
+
+// Shared by both branches
+//   status?: number;
+//   headers?: Record<string, string>;
+//   duration?: number;          // milliseconds
+//   response?: Response;        // raw fetch Response
+//   request?: ResolvedRequest;  // url, method, headers as sent (credentials redacted), body, config, attempt
+```
+
+```typescript
+const response = await api.get<User>('/users/1');
+
+if (response.ok) {
+  response.data.name;          // User — no undefined, no guard needed
+} else {
+  response.error.kind;         // 'http' | 'timeout' | 'network' | …
+  response.data;               // unknown: the server's error body
 }
 ```
 
-**Type guards:**
+`isOkResponse()` and `isErrorResponse()` are still exported for use as predicates (`responses.filter(isOkResponse)`).
+
+**Building a response by hand** (in a response interceptor or a short-circuit) now has to satisfy one branch completely. To turn a failure into a success, set every field of the ok branch:
 
 ```typescript
-import { isOkResponse, isErrorResponse, setRequestHeader } from '@mshindi-labs/refetch';
-
-if (isOkResponse(response)) {
-  response.data; // T — guaranteed present
-}
-
-if (isErrorResponse(response)) {
-  response.error; // RefetchError — fully narrowable
-}
+api.interceptors.response.use((response) =>
+  response.status === 404
+    ? { ...response, ok: true, problem: null, originalError: null, status: 200, data: [] }
+    : response,
+);
 ```
 
 ## Error Handling
@@ -765,6 +782,11 @@ Size: refetch's root entry is about 8 KB minified + gzip with every export inclu
 Where refetch differs by design: failures are returned as values with a discriminated `error.kind` instead of thrown, with throwing available per instance, per request or per call (`unwrap`). If you prefer exceptions everywhere and the smallest possible bundle, ky or up-fetch are good choices.
 
 ## Migration from v3
+
+**`ApiResponse<T>` is a discriminated union.** Reading code gets simpler: after `if (response.ok)`, `response.data` is `T` and after `else`, `response.error` exists, with no type guard. Two things can stop compiling:
+
+- Code that reads `response.data` as `T` *without* checking `ok` first: on the error branch `data` is now `unknown`.
+- Code that builds a response object by hand (interceptors, short-circuits, test doubles): an ok response needs `ok: true, problem: null, originalError: null, data, status`; an error response needs `ok: false, problem, error, originalError`. `ApiErrorResponse<T>`'s parameter now types the error body and defaults to `unknown`.
 
 **`PROBLEM_CODE` is a const object, not an enum.** Runtime values are unchanged, so `response.problem === PROBLEM_CODE.CLIENT_ERROR` and `switch` statements keep working. For types, use the new `ProblemCode` union; `PROBLEM_CODE` still works as a type alias but is deprecated. The one thing that no longer compiles is an enum *member* used as a type (`let p: PROBLEM_CODE.CLIENT_ERROR`): write `typeof PROBLEM_CODE.CLIENT_ERROR` or `'CLIENT_ERROR'`.
 

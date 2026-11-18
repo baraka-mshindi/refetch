@@ -29,7 +29,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 
 | File | Responsibility |
 |------|---------------|
-| `types.ts` | All public types: `PROBLEM_CODE`, `RefetchError`, `RetryConfig`, `ApiResponse`, `RefetchInstance`, interceptor types, transform types |
+| `types.ts` | All public types: `PROBLEM_CODE` / `ProblemCode`, `RefetchError`, `RetryConfig`, `ApiResponse` (= `ApiOkResponse<T> | ApiErrorResponse`, discriminated on `ok`), `RefetchInstance`, interceptor types, transform types |
 | `constants.ts` | `STATUS_RANGES`, `DEFAULT_TIMEOUT`, `DEFAULT_HEADERS` (Accept only — no Content-Type) |
 | `errors.ts` | `CancelError`, `TimeoutError`, `NetworkError`, `createCancelToken`, `classifyProblem`, `buildRefetchError`; throw mode: `RefetchResponseError` + one subclass per kind, `toResponseError`, `isRefetchError`, `unwrap` |
 | `url.ts` | `buildUrl` (optional `paramsSerializer`), `buildQueryString` (object / `URLSearchParams` / tuples; Dates → ISO, nested objects throw) |
@@ -156,6 +156,7 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- `ApiResponse<T>` is a union: never widen it back to an interface with `ok: boolean`. `normalizeSuccessResponse` returns `ApiOkResponse<T>`, `normalizeErrorResponse` returns `ApiErrorResponse`; `retry.ts` still tolerates hand-built error responses without `error` at runtime
 - Source must stay loadable by Node's type stripping: `erasableSyntaxOnly` is on (no enums, no parameter properties, no runtime namespaces) and relative imports in `src/` carry the `.ts` extension (`allowImportingTsExtensions`; tsdown rewrites them). `PROBLEM_CODE` is an `as const` object with a `ProblemCode` union
 - The docs site (`docs/`, VitePress) only includes `README.md`, `SECURITY.md` and `CHANGELOG.md`; write documentation in those files, not in `docs/`. The README comparison table is dated: re-check it against `npm view <pkg>` and each README before a minor release
 - `extend(overrides)` builds a new instance through `create()`: object overrides merge (headers via `mergeHeaders`, `retry` field by field, signals via `AbortSignal.any`), a function result replaces; interceptors and monitors are re-registered in insertion order, so no mutable state is shared. Middleware HOFs still mutate their argument until v4 (#56)

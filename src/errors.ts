@@ -353,5 +353,5 @@ export function isRefetchError(value: unknown): value is RefetchResponseError {
  */
 export function unwrap<T>(response: ApiResponse<T>): T {
   if (response.ok) return response.data as T;
-  throw toResponseError(response as ApiErrorResponse<T>);
+  throw toResponseError(response);
 }

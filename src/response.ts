@@ -1,7 +1,13 @@
 import { JSON_LIKE_RE } from './body.ts';
 import { buildRefetchError, classifyProblem, ParseError, ResponseSizeError } from './errors.ts';
 import { headersToObject } from './headers.ts';
-import type { ApiResponse, ParseJson, ResolvedRequest, ResponseBodyType } from './types.ts';
+import type {
+  ApiErrorResponse,
+  ApiOkResponse,
+  ParseJson,
+  ResolvedRequest,
+  ResponseBodyType,
+} from './types.ts';
 
 // Matches binary MIME prefixes and known binary application subtypes
 const BINARY_PREFIX_RE = /^(image|audio|video)\//i;
@@ -150,7 +156,7 @@ export function normalizeSuccessResponse<T>(
   data: T,
   response: Response,
   duration: number,
-): ApiResponse<T> {
+): ApiOkResponse<T> {
   return {
     ok: true,
     problem: null,
@@ -167,7 +173,7 @@ export function normalizeErrorResponse<T>(
   error: Error,
   response?: Response,
   duration?: number,
-): ApiResponse<T> {
+): ApiErrorResponse<T> {
   const status = response?.status;
   const statusText = response?.statusText;
   const contentType = response?.headers.get('content-type') ?? undefined;
@@ -184,5 +190,5 @@ export function normalizeErrorResponse<T>(
     headers: response ? headersToObject(response.headers) : undefined,
     duration,
     response,
-  } as ApiResponse<T>;
+  };
 }

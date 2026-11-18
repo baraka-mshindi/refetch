@@ -8,11 +8,14 @@ import {
   shouldRetry,
   sleep,
 } from '../../src/retry';
-import { type ApiResponse, PROBLEM_CODE } from '../../src/types';
+import { type ApiErrorResponse, type ApiResponse, PROBLEM_CODE } from '../../src/types';
 
-const failed = (status?: number): ApiResponse<unknown> => ({
+const failed = (status?: number): ApiErrorResponse => ({
   ok: false,
   problem: status ? PROBLEM_CODE.SERVER_ERROR : PROBLEM_CODE.NETWORK_ERROR,
+  error: status
+    ? { kind: 'http', status, statusText: '' }
+    : { kind: 'network', cause: new TypeError('failed') },
   originalError: new Error('failed'),
   status,
 });
@@ -174,7 +177,7 @@ describe('shouldRetry', () => {
   });
 
   it('does not retry parse errors by default but lets a condition opt in', () => {
-    const parseFailure: ApiResponse<unknown> & { error: unknown } = {
+    const parseFailure: ApiErrorResponse = {
       ...failed(200),
       problem: PROBLEM_CODE.PARSE_ERROR,
       error: { kind: 'parse', contentType: 'application/json', cause: new Error('bad') },
@@ -204,7 +207,7 @@ describe('shouldRetry', () => {
   });
 
   it('never retries cancelled requests', () => {
-    const cancelled: ApiResponse<unknown> & { error: unknown } = {
+    const cancelled: ApiErrorResponse = {
       ...failed(undefined),
       problem: PROBLEM_CODE.CANCEL_ERROR,
       error: { kind: 'cancel', cause: new Error('cancelled') },

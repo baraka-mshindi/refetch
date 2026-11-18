@@ -76,15 +76,29 @@ describe('public API types', () => {
     }
   });
 
-  it('does not yet narrow on `ok` alone (known gap #12)', async () => {
+  it('narrows on `ok` alone, as the README examples do (#12)', async () => {
     const result = await api.get<User>('/users/1');
     if (result.ok) {
-      expectTypeOf(result.data).toEqualTypeOf<User | undefined>();
-    }
-    if (!result.ok) {
-      // @ts-expect-error — `error` only exists on ApiErrorResponse until #12 lands
+      expectTypeOf(result.data).toEqualTypeOf<User>();
+      expectTypeOf(result.status).toEqualTypeOf<number>();
+      expectTypeOf(result.problem).toEqualTypeOf<null>();
+      // @ts-expect-error — `error` only exists on the error branch
       result.error;
+    } else {
+      expectTypeOf(result.error).toEqualTypeOf<RefetchError>();
+      expectTypeOf(result.problem).toEqualTypeOf<ProblemCode>();
+      // The error body is not the success type.
+      expectTypeOf(result.data).toEqualTypeOf<unknown>();
+      switch (result.error.kind) {
+        case 'http':
+          expectTypeOf(result.error.status).toEqualTypeOf<number>();
+          break;
+        case 'timeout':
+          expectTypeOf(result.error.duration).toEqualTypeOf<number>();
+          break;
+      }
     }
+    expectTypeOf<ApiResponse<User>>().toEqualTypeOf<ApiOkResponse<User> | ApiErrorResponse>();
   });
 
   it('accepts false to disable timeouts and exposes totalTimeout', () => {

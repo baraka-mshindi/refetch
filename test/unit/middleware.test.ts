@@ -97,12 +97,14 @@ describe('withLogging', () => {
       ok: true,
       problem: null,
       originalError: null,
+      data: null,
       status: 200,
       duration: 5,
     });
     await handler?.onFulfilled?.({
       ok: false,
       problem: PROBLEM_CODE.SERVER_ERROR,
+      error: { kind: 'http', status: 500, statusText: '' },
       originalError: null,
       status: 500,
       duration: 7,

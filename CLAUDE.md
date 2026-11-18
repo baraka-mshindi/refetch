@@ -29,7 +29,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 
 | File | Responsibility |
 |------|---------------|
-| `types.ts` | All public types: `PROBLEM_CODE` / `ProblemCode`, `RefetchError`, `RetryConfig`, `ApiResponse` (= `ApiOkResponse<T> | ApiErrorResponse`, discriminated on `ok`), `RefetchInstance`, interceptor types, transform types |
+| `types.ts` | All public types: `PROBLEM_CODE` / `ProblemCode`, `RefetchError`, `RetryConfig`, `ApiResponse` (= `ApiOkResponse<T> | ApiErrorResponse`, discriminated on `ok`), `RefetchInstance`, interceptor types |
 | `constants.ts` | `STATUS_RANGES`, `DEFAULT_TIMEOUT`, `DEFAULT_HEADERS` (Accept only — no Content-Type) |
 | `errors.ts` | `CancelError`, `TimeoutError`, `NetworkError`, `createCancelToken`, `classifyProblem`, `buildRefetchError`; throw mode: `RefetchResponseError` + one subclass per kind, `toResponseError`, `isRefetchError`, `unwrap` |
 | `url.ts` | `buildUrl` (optional `paramsSerializer`), `buildQueryString` (object / `URLSearchParams` / tuples; Dates → ISO, nested objects throw) |
@@ -43,7 +43,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 | `pipe.ts` | `pipe()` HOF |
 | `stream.ts` | `/stream` sub-path: `parseSse`, `parseNdjson` (async generators over a byte stream), `sse()`, `ndjson()` helpers that call `api.stream()`; no runtime imports |
 | `schema.ts` | Vendored `StandardSchemaV1` interface, types only (no runtime code) |
-| `refetch.ts` | `create()` factory — pipeline, retry loop, stream(), transform aliases |
+| `refetch.ts` | `create()` factory — pipeline, retry loop, stream(), extend() |
 | `index.ts` | All public exports |
 
 `utils.ts` does not exist — it was dissolved into the six utility modules above.
@@ -112,10 +112,6 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 - `getAll()` — returns array of handlers in insertion order
 
 Request interceptors are **reversed** before execution (LIFO). Response interceptors execute in order (FIFO). If the response interceptor chain rejects, the error is wrapped in `normalizeErrorResponse` — it never propagates as an unhandled exception.
-
-### Transform Aliases (Deprecated)
-
-`addRequestTransform` / `addResponseTransform` wrap the transform as an interceptor internally. The original function → interceptor ID mapping is stored in `requestTransformIds` / `responseTransformIds` (`Map<Function, number>`) for reference-based removal via `removeRequestTransform(fn)`. Transforms mutate the config/response then return it — backward compatible with v2 mutation-based usage.
 
 ### Retry Loop
 

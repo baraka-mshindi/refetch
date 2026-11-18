@@ -316,10 +316,6 @@ export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'>, Bod
   throwOnError?: ThrowOnError;
 }
 
-export type RequestTransform = (config: RequestConfig) => void;
-export type AsyncRequestTransform = (config: RequestConfig) => Promise<void>;
-export type ResponseTransform = <T>(response: ApiResponse<T>) => void;
-export type AsyncResponseTransform = <T>(response: ApiResponse<T>) => Promise<void>;
 export type Monitor = <T>(response: ApiResponse<T>) => void;
 
 export interface InterceptorHandler<T, R = T> {
@@ -431,20 +427,8 @@ export interface RefetchInstance {
     config?: RequestConfig,
   ): Promise<ApiResponse<ReadableStream<T>>>;
 
-  /** @deprecated Use `interceptors.request.use()` instead. */
-  addRequestTransform(transform: RequestTransform | AsyncRequestTransform): void;
-  /** @deprecated Use `interceptors.response.use()` instead. */
-  addResponseTransform(transform: ResponseTransform | AsyncResponseTransform): void;
   addMonitor(monitor: Monitor): void;
-  /** @deprecated Use `interceptors.request.eject()` instead. */
-  removeRequestTransform(transform: RequestTransform | AsyncRequestTransform): boolean;
-  /** @deprecated Use `interceptors.response.eject()` instead. */
-  removeResponseTransform(transform: ResponseTransform | AsyncResponseTransform): boolean;
   removeMonitor(monitor: Monitor): boolean;
-  /** @deprecated Use `interceptors.request.clear()` instead. */
-  clearRequestTransforms(): void;
-  /** @deprecated Use `interceptors.response.clear()` instead. */
-  clearResponseTransforms(): void;
   clearMonitors(): void;
 
   /**

@@ -35,8 +35,6 @@ import {
 import type { StandardSchemaV1 } from './schema.ts';
 import type {
   ApiResponse,
-  AsyncRequestTransform,
-  AsyncResponseTransform,
   Monitor,
   ProgressCallback,
   QueryParams,
@@ -44,9 +42,7 @@ import type {
   RefetchInstance,
   RequestConfig,
   RequestInterceptorResult,
-  RequestTransform,
   ResolvedRequest,
-  ResponseTransform,
   RetryConfig,
   ShortCircuit,
 } from './types.ts';
@@ -206,10 +202,6 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     requestInterceptors: createInterceptorManager<RequestConfig, RequestInterceptorResult>(),
     responseInterceptors: createInterceptorManager<ApiResponse<unknown>>(),
   };
-
-  // Maps original transform fn → interceptor ID for reference-based removal
-  const requestTransformIds = new Map<Function, number>();
-  const responseTransformIds = new Map<Function, number>();
 
   // ─── Interceptor pipeline ───────────────────────────────────────────────
 
@@ -720,64 +712,6 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     });
   }
 
-  // ─── Transform aliases (backward compat) ────────────────────────────────
-
-  function addRequestTransform(transform: RequestTransform | AsyncRequestTransform): void {
-    if (typeof transform !== 'function') {
-      throw new TypeError('Request transform must be a function');
-    }
-    const id = state.requestInterceptors.use(async (config) => {
-      await transform(config);
-      return config;
-    });
-    requestTransformIds.set(transform, id);
-  }
-
-  function addResponseTransform(transform: ResponseTransform | AsyncResponseTransform): void {
-    if (typeof transform !== 'function') {
-      throw new TypeError('Response transform must be a function');
-    }
-    const id = state.responseInterceptors.use(async (response) => {
-      await (transform as ResponseTransform)(response);
-      return response;
-    });
-    responseTransformIds.set(transform, id);
-  }
-
-  function removeRequestTransform(transform: RequestTransform | AsyncRequestTransform): boolean {
-    const id = requestTransformIds.get(transform);
-    if (id !== undefined) {
-      state.requestInterceptors.eject(id);
-      requestTransformIds.delete(transform);
-      return true;
-    }
-    return false;
-  }
-
-  function removeResponseTransform(transform: ResponseTransform | AsyncResponseTransform): boolean {
-    const id = responseTransformIds.get(transform);
-    if (id !== undefined) {
-      state.responseInterceptors.eject(id);
-      responseTransformIds.delete(transform);
-      return true;
-    }
-    return false;
-  }
-
-  function clearRequestTransforms(): void {
-    requestTransformIds.forEach((id) => {
-      state.requestInterceptors.eject(id);
-    });
-    requestTransformIds.clear();
-  }
-
-  function clearResponseTransforms(): void {
-    responseTransformIds.forEach((id) => {
-      state.responseInterceptors.eject(id);
-    });
-    responseTransformIds.clear();
-  }
-
   // ─── Derived instances ──────────────────────────────────────────────────
 
   function extend(
@@ -882,14 +816,8 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     unlink,
     any,
     stream,
-    addRequestTransform,
-    addResponseTransform,
     addMonitor,
-    removeRequestTransform,
-    removeResponseTransform,
     removeMonitor,
-    clearRequestTransforms,
-    clearResponseTransforms,
     clearMonitors,
     extend,
     setHeader,

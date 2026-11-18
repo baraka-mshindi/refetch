@@ -30,7 +30,7 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 |------|---------------|
 | `types.ts` | All public types: `PROBLEM_CODE`, `RefetchError`, `RetryConfig`, `ApiResponse`, `RefetchInstance`, interceptor types, transform types |
 | `constants.ts` | `STATUS_RANGES`, `DEFAULT_TIMEOUT`, `DEFAULT_HEADERS` (Accept only — no Content-Type) |
-| `errors.ts` | `CancelError`, `TimeoutError`, `NetworkError`, `createCancelToken`, `classifyProblem`, `buildRefetchError` |
+| `errors.ts` | `CancelError`, `TimeoutError`, `NetworkError`, `createCancelToken`, `classifyProblem`, `buildRefetchError`; throw mode: `RefetchResponseError` + one subclass per kind, `toResponseError`, `isRefetchError`, `unwrap` |
 | `url.ts` | `buildUrl` (optional `paramsSerializer`), `buildQueryString` (object / `URLSearchParams` / tuples; Dates → ISO, nested objects throw) |
 | `headers.ts` | `mergeHeaders`, `headersToObject`, `setRequestHeader` |
 | `body.ts` | `prepareRequestBody`, `shouldHaveBody`, `getBodyContentType`, `JSON_LIKE_RE` |
@@ -154,6 +154,8 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 - `stream()` returns `ApiResponse<ReadableStream<T>>` — no body parsing, no retry
 - Request interceptors run **once** before the retry loop; response interceptors run **per attempt**
 - Cancelled requests, `totalTimeout` expiries, parse failures (by default) and `ReadableStream`-bodied requests are never retried; `timeout: 0` / `false` disables the per-attempt timeout
+- `request()` and `stream()` resolve by default; they reject only when `throwOnError` (instance or per request) says so, with a `RefetchResponseError` subclass, and only after retries, response interceptors and monitors have run (`settle()` in `refetch.ts`)
+- The thrown base class is `RefetchResponseError` because `RefetchError` is already the discriminated-union type
 - `request()` and `stream()` never reject because of an interceptor: interceptor errors become error responses that still reach response interceptors and monitors
 - `src/retry.ts` has no runtime imports (keeps the `/retry` sub-path tiny)
 - Request interceptors always receive `config.headers` as a lower-cased plain object; middleware must merge with `mergeHeaders`/`setRequestHeader`, never spread `HeadersInit`

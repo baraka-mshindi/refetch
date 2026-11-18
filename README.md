@@ -11,6 +11,7 @@ A modern, production-grade HTTP client built on native `fetch` — composable, c
 - **Composable, class-free API** — a factory and plain functions, no `this`, compose via `pipe()` (instances are stateful: `setHeader`, `setBaseURL` and `interceptors.use` change them in place)
 - **Interceptors** — axios-style request/response middleware with ID-based ejection
 - **Discriminated error union** (`RefetchError`) for precise narrowing per error kind
+- **Opt-in throw mode** — `throwOnError` and `unwrap()` reject with typed error classes for TanStack Query-style callers
 - **Retry** — per-request and instance-wide, fully configurable with custom delay/condition
 - **Streaming** — raw `ReadableStream` via `stream()`
 - **Cancellation** — `createCancelToken()` wraps `AbortController`
@@ -169,6 +170,52 @@ if (!response.ok) {
   }
 }
 ```
+
+### Throwing instead of returning
+
+Error responses are returned, not thrown, by default. Two opt-ins give rejection semantics for code that expects them (TanStack Query, SWR, route loaders, `Promise.all`):
+
+```typescript
+import { create, unwrap, isRefetchError, RefetchHttpError } from '@mshindi-labs/refetch';
+
+// Per call: data on success, a typed error otherwise
+const user = await api.get<User>('/users/1').then(unwrap);
+
+// Per instance or per request
+const strict = create({ baseURL, throwOnError: true });
+await strict.get('/users/1');                                    // rejects on any failure
+await strict.get('/users/1', undefined, { throwOnError: false }); // back to a result object
+create({ baseURL, throwOnError: (response) => (response.status ?? 0) >= 500 });
+```
+
+Each `RefetchError` kind has its own class, all extending `RefetchResponseError`:
+
+| `kind` | Class | Notes |
+|---|---|---|
+| `http` | `RefetchHttpError` | `status`, `statusText`, `data` (the error body) |
+| `timeout` | `RefetchTimeoutError` | `cause` is the `TimeoutError` |
+| `network` | `RefetchNetworkError` | `cause` is the `NetworkError` |
+| `cancel` | `RefetchCancelError` | |
+| `parse` | `RefetchParseError` | `data` is the raw text |
+| `unknown` | `RefetchUnknownError` | for example a throwing interceptor |
+
+```typescript
+try {
+  await strict.post('/orders', order);
+} catch (error) {
+  if (error instanceof RefetchHttpError && error.status === 409) {
+    showConflict(error.data);
+  } else if (isRefetchError(error)) {
+    report(error.kind, error.problem, error.request?.url);
+  } else {
+    throw error;
+  }
+}
+```
+
+Every error carries `kind`, `problem`, `status`, `data`, `headers`, `request`, the full `response` (the `ApiErrorResponse`) and the underlying `cause`. Throwing happens last: retries, response interceptors and monitors run exactly as they do without it, so an interceptor can still turn a failure into a success.
+
+`response`, `request` and `headers` are non-enumerable, so `JSON.stringify(error)` and error reporters that walk enumerable properties do not pick up the request config (which holds unredacted credentials for replays) or the request body. `data`, the server's error body, is enumerable; scrub it yourself if your API echoes secrets.
 
 ## Interceptors
 
@@ -492,28 +539,23 @@ api.interceptors.request.eject(id);
 
 ```typescript
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { unwrap } from '@mshindi-labs/refetch';
 
 function useUser(id: string) {
   return useQuery({
     queryKey: ['user', id],
-    queryFn: async () => {
-      const response = await api.get<User>(`/users/${id}`);
-      if (!response.ok) throw new Error(response.problem ?? 'Failed');
-      return response.data;
-    },
+    queryFn: () => api.get<User>(`/users/${id}`).then(unwrap),
   });
 }
 
 function useCreateUser() {
   return useMutation({
-    mutationFn: async (dto: CreateUserDto) => {
-      const response = await api.post<User, CreateUserDto>('/users', dto);
-      if (!response.ok) throw new Error(response.problem ?? 'Failed');
-      return response.data;
-    },
+    mutationFn: (dto: CreateUserDto) => api.post<User, CreateUserDto>('/users', dto).then(unwrap),
   });
 }
 ```
+
+`unwrap` returns `data` or throws a typed error, so `error` in the query result is a `RefetchResponseError` with `status`, `data` and `kind`; see [Throwing instead of returning](#throwing-instead-of-returning).
 
 ## Why Refetch?
 
@@ -525,7 +567,7 @@ function useCreateUser() {
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~6.3 KB gzip (v3.3.0, root entry) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~6.7 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

@@ -6,14 +6,19 @@ import {
   create,
   isErrorResponse,
   isOkResponse,
+  isRefetchError,
   type QueryParams,
   type RefetchConfig,
   type RefetchError,
+  RefetchHttpError,
   type RefetchInstance,
+  type RefetchResponseError,
   type RequestConfig,
   type ResolvedRequest,
   type RetryConfig,
   type ShortCircuit,
+  type ThrowOnError,
+  unwrap,
 } from '../../src/index';
 
 interface User {
@@ -119,5 +124,36 @@ describe('public API types', () => {
       status: number;
       statusText: string;
     }>();
+  });
+
+  it('unwrap narrows a response to its data type', async () => {
+    const response = await api.get<User>('/users/1');
+    expectTypeOf(unwrap(response)).toEqualTypeOf<User>();
+    expectTypeOf(api.get<User>('/users/1').then(unwrap)).resolves.toEqualTypeOf<User>();
+  });
+
+  it('types the thrown errors: guard, narrowed kind and status, typed error body', () => {
+    const thrown: unknown = undefined;
+    if (isRefetchError(thrown)) {
+      expectTypeOf(thrown).toEqualTypeOf<RefetchResponseError>();
+      expectTypeOf(thrown.status).toEqualTypeOf<number | undefined>();
+      expectTypeOf(thrown.kind).toEqualTypeOf<RefetchError['kind']>();
+    }
+    if (thrown instanceof RefetchHttpError) {
+      expectTypeOf(thrown.kind).toEqualTypeOf<'http'>();
+      expectTypeOf(thrown.status).toEqualTypeOf<number>();
+      expectTypeOf(thrown.statusText).toEqualTypeOf<string>();
+    }
+    expectTypeOf<RefetchHttpError<{ code: string }>['data']>().toEqualTypeOf<
+      { code: string } | undefined
+    >();
+  });
+
+  it('accepts throwOnError as a boolean or predicate on the instance and per request', () => {
+    expectTypeOf<RefetchConfig['throwOnError']>().toEqualTypeOf<ThrowOnError | undefined>();
+    expectTypeOf<RequestConfig['throwOnError']>().toEqualTypeOf<ThrowOnError | undefined>();
+    expectTypeOf<ThrowOnError>().toEqualTypeOf<
+      boolean | ((response: ApiErrorResponse<unknown>) => boolean)
+    >();
   });
 });

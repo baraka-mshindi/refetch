@@ -5,9 +5,19 @@ export {
   CancelError,
   classifyProblem,
   createCancelToken,
+  isRefetchError,
   NetworkError,
   ParseError,
+  RefetchCancelError,
+  RefetchHttpError,
+  RefetchNetworkError,
+  RefetchParseError,
+  RefetchResponseError,
+  RefetchTimeoutError,
+  RefetchUnknownError,
   TimeoutError,
+  toResponseError,
+  unwrap,
 } from './errors';
 export { fetchWithTimeout } from './fetch';
 export { headersToObject, mergeHeaders, setRequestHeader } from './headers';
@@ -57,6 +67,7 @@ export type {
   RetryConfig,
   RetryContext,
   ShortCircuit,
+  ThrowOnError,
 } from './types';
 export { isErrorResponse, isOkResponse, PROBLEM_CODE } from './types';
 export { buildQueryString, buildUrl } from './url';

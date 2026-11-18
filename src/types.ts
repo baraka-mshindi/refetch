@@ -143,6 +143,9 @@ export interface ApiErrorResponse<T> extends ApiResponse<T> {
   originalError: Error | null;
 }
 
+/** `true` rejects on every error response; a predicate picks which ones reject. */
+export type ThrowOnError = boolean | ((response: ApiErrorResponse<unknown>) => boolean);
+
 export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'> {
   url?: string;
   method?: string;
@@ -161,6 +164,8 @@ export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'> {
   baseURL?: string;
   /** Retry on failure. Number = attempt count shorthand; object for full control. */
   retry?: number | RetryConfig;
+  /** Overrides the instance `throwOnError` for this request. */
+  throwOnError?: ThrowOnError;
 }
 
 export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'> {
@@ -174,6 +179,12 @@ export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'> {
   paramsSerializer?: ParamsSerializer;
   /** Instance-wide retry default. Overridden by per-request `retry`. */
   retry?: number | RetryConfig;
+  /**
+   * Reject with a typed `RefetchResponseError` instead of resolving an error response. `true`
+   * throws for every failure; a function decides per response. Thrown after retries, response
+   * interceptors and monitors have run. Default `false`.
+   */
+  throwOnError?: ThrowOnError;
 }
 
 export type RequestTransform = (config: RequestConfig) => void;

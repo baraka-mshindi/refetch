@@ -1,7 +1,7 @@
 import { JSON_LIKE_RE } from './body';
 import { buildRefetchError, classifyProblem, ParseError } from './errors';
 import { headersToObject } from './headers';
-import type { ApiResponse } from './types';
+import type { ApiResponse, ParseJson, ResolvedRequest, ResponseBodyType } from './types';
 
 // Matches binary MIME prefixes and known binary application subtypes
 const BINARY_PREFIX_RE = /^(image|audio|video)\//i;
@@ -26,9 +26,33 @@ const BINARY_APP_TYPES = new Set([
   'font/otf',
 ]);
 
+export interface ParseBodyOptions {
+  responseType?: ResponseBodyType;
+  parseJson?: ParseJson;
+  /** Passed to `parseJson` as context. */
+  request?: ResolvedRequest;
+}
+
 export async function parseResponseBody<T>(
   response: Response,
-): Promise<T | string | Blob | Record<string, string> | null> {
+  options: ParseBodyOptions = {},
+): Promise<
+  | T
+  | string
+  | Blob
+  | ArrayBuffer
+  | Uint8Array
+  | ReadableStream<Uint8Array>
+  | Record<string, string>
+  | null
+> {
+  const type = options.responseType ?? 'auto';
+  if (type === 'none') {
+    // Release the connection instead of leaving an unread body behind.
+    response.body?.cancel().catch(() => {});
+    return null;
+  }
+
   // No-body status codes — never attempt to read
   if (response.status === 204 || response.status === 304) return null;
   if (response.headers.get('content-length') === '0') return null;
@@ -36,21 +60,35 @@ export async function parseResponseBody<T>(
   const contentType = response.headers.get('content-type');
   const mimeType = contentType?.split(';')[0]?.trim().toLowerCase() ?? '';
 
+  const readJson = async (): Promise<T | null> => {
+    const text = await response.text();
+    if (!text) return null;
+    try {
+      return (
+        options.parseJson
+          ? options.parseJson(text, { response, request: options.request })
+          : JSON.parse(text)
+      ) as T;
+    } catch (cause) {
+      throw new ParseError(mimeType || null, cause, text);
+    }
+  };
+
+  if (type === 'json') return readJson();
+  if (type === 'text') return response.text();
+  if (type === 'blob') return response.blob();
+  if (type === 'arrayBuffer') return response.arrayBuffer();
+  if (type === 'bytes') return new Uint8Array(await response.arrayBuffer());
+  // 'stream', and event streams under 'auto': buffering a stream that may never end is useless.
+  if (type === 'stream' || mimeType === 'text/event-stream') return response.body;
+
   if (!mimeType) {
     const text = await response.text();
     return text || null;
   }
 
   // JSON: exact match or +json suffix (application/vnd.api+json, application/ld+json, etc.)
-  if (mimeType === 'application/json' || JSON_LIKE_RE.test(mimeType)) {
-    const text = await response.text();
-    if (!text) return null;
-    try {
-      return JSON.parse(text) as T;
-    } catch (cause) {
-      throw new ParseError(mimeType, cause, text);
-    }
-  }
+  if (mimeType === 'application/json' || JSON_LIKE_RE.test(mimeType)) return readJson();
 
   // URL-encoded form data → plain object
   if (mimeType === 'application/x-www-form-urlencoded') {

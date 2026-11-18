@@ -15,7 +15,10 @@ export function shouldHaveBody(method: string): boolean {
  *
  * Plain objects / arrays → JSON.stringify (returns a string)
  */
-export function prepareRequestBody(data: unknown): BodyInit | undefined {
+export function prepareRequestBody(
+  data: unknown,
+  stringify: (value: unknown) => string = JSON.stringify,
+): BodyInit | undefined {
   if (data === undefined || data === null) return undefined;
 
   if (typeof data === 'string') return data;
@@ -28,7 +31,7 @@ export function prepareRequestBody(data: unknown): BodyInit | undefined {
     return data as ReadableStream;
   }
 
-  return JSON.stringify(data);
+  return stringify(data);
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   type RefetchResponseError,
   type RequestConfig,
   type ResolvedRequest,
+  type ResponseBodyType,
   type RetryConfig,
   type ShortCircuit,
   type ThrowOnError,
@@ -155,5 +156,27 @@ describe('public API types', () => {
     expectTypeOf<ThrowOnError>().toEqualTypeOf<
       boolean | ((response: ApiErrorResponse<unknown>) => boolean)
     >();
+  });
+
+  it('types responseType, parseJson and stringifyJson on both config levels', () => {
+    expectTypeOf<ResponseBodyType>().toEqualTypeOf<
+      'auto' | 'json' | 'text' | 'blob' | 'arrayBuffer' | 'bytes' | 'stream' | 'none'
+    >();
+    expectTypeOf<RequestConfig['responseType']>().toEqualTypeOf<ResponseBodyType | undefined>();
+    expectTypeOf<RefetchConfig['responseType']>().toEqualTypeOf<ResponseBodyType | undefined>();
+    create({
+      parseJson: (text, context) => {
+        expectTypeOf(text).toBeString();
+        expectTypeOf(context.response).toEqualTypeOf<Response>();
+        expectTypeOf(context.request).toEqualTypeOf<ResolvedRequest | undefined>();
+        return JSON.parse(text);
+      },
+      stringifyJson: (value) => {
+        expectTypeOf(value).toBeUnknown();
+        return JSON.stringify(value);
+      },
+    });
+    // @ts-expect-error unknown response types are rejected
+    api.get('/x', undefined, { responseType: 'xml' });
   });
 });

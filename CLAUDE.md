@@ -89,8 +89,10 @@ Tests live in `test/` (layout and conventions in CONTRIBUTING.md "Testing Guidel
 
 `parseResponseBody` routes by MIME type (stripped of parameters) from `Content-Type`:
 
+- `options.responseType` (`'auto'` default) first: `'none'` cancels the body and returns `null`; `'json' | 'text' | 'blob' | 'arrayBuffer' | 'bytes' | 'stream'` force that reader. Everything below is `'auto'`
 - 204 / 304 / `content-length: 0` → `null` immediately (no read)
-- `application/json` or `/+json` suffix (via `JSON_LIKE_RE`) → `response.text()` + `JSON.parse` (empty text → `null`, invalid → `ParseError` with the raw text)
+- `text/event-stream` → `response.body` (unread stream)
+- `application/json` or `/+json` suffix (via `JSON_LIKE_RE`) → `response.text()` + `options.parseJson ?? JSON.parse` (empty text → `null`, invalid → `ParseError` with the raw text)
 - `application/x-www-form-urlencoded` → `URLSearchParams` → `Record<string, string>`
 - `image/*`, `audio/*`, `video/*`, `application/pdf`, `application/zip`, Office docs, fonts → `response.blob()`
 - `text/*`, `application/xml`, `application/xhtml+xml` → `response.text()`
@@ -151,6 +153,8 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 - `utils.ts` does not exist
 - `DEFAULT_HEADERS` has **only** `Accept` — never `Content-Type`
 - `RefetchError` is defined in `types.ts`; `buildRefetchError` is in `errors.ts`
+- When the parsed `data` is a `ReadableStream` (`responseType: 'stream'`, or SSE under `'auto'`), `executeSingleRequest` clears the attempt timeout but does not dispose the attempt or call signals, so the caller's abort still reaches the body; a failed request with `responseType: 'stream'` is parsed as `'auto'`
+- `responseType`, `parseJson`, `stringifyJson` live on both `RefetchConfig` and `RequestConfig` (`BodyOptions`) and are in `REFETCH_KEYS` so they never reach `fetch()`
 - `stream()` returns `ApiResponse<ReadableStream<T>>` — no body parsing, no retry
 - Request interceptors run **once** before the retry loop; response interceptors run **per attempt**
 - Cancelled requests, `totalTimeout` expiries, parse failures (by default) and `ReadableStream`-bodied requests are never retried; `timeout: 0` / `false` disables the per-attempt timeout

@@ -143,10 +143,44 @@ export interface ApiErrorResponse<T> extends ApiResponse<T> {
   originalError: Error | null;
 }
 
+/**
+ * How the response body is read. `'auto'` (default) decides from `Content-Type`; the others
+ * force one reader whatever the server declares. `'stream'` returns the unread
+ * `ReadableStream` (the timeout then covers headers only); `'none'` skips the body.
+ */
+export type ResponseBodyType =
+  | 'auto'
+  | 'json'
+  | 'text'
+  | 'blob'
+  | 'arrayBuffer'
+  | 'bytes'
+  | 'stream'
+  | 'none';
+
+/** Replaces `JSON.parse` for response bodies (success and error). Throw to report a parse error. */
+export type ParseJson = (
+  text: string,
+  context: { response: Response; request?: ResolvedRequest },
+) => unknown;
+
+/** Replaces `JSON.stringify` for plain object and array request bodies. */
+export type StringifyJson = (value: unknown) => string;
+
+/** Body handling options shared by the instance config and per-request config. */
+export interface BodyOptions {
+  /** How to read the response body. Default `'auto'`. */
+  responseType?: ResponseBodyType;
+  /** Custom JSON parser, e.g. BigInt-safe or prototype-pollution-safe. */
+  parseJson?: ParseJson;
+  /** Custom JSON serialiser for object and array bodies. */
+  stringifyJson?: StringifyJson;
+}
+
 /** `true` rejects on every error response; a predicate picks which ones reject. */
 export type ThrowOnError = boolean | ((response: ApiErrorResponse<unknown>) => boolean);
 
-export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'> {
+export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'>, BodyOptions {
   url?: string;
   method?: string;
   params?: QueryParams;
@@ -168,7 +202,7 @@ export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'> {
   throwOnError?: ThrowOnError;
 }
 
-export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'> {
+export interface RefetchConfig extends Omit<RequestInit, 'method' | 'body'>, BodyOptions {
   baseURL?: string;
   headers?: HeadersInit;
   /** Default per-attempt timeout in ms. `0` or `false` disables it. Defaults to 10 000. */

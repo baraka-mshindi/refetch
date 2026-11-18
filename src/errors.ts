@@ -81,6 +81,17 @@ export class ParseError extends Error {
   }
 }
 
+/** The response body exceeded `maxResponseSize`; reading stopped at `limit` bytes. */
+export class ResponseSizeError extends Error {
+  readonly limit: number;
+
+  constructor(limit: number) {
+    super(`Response body exceeds the ${limit}-byte limit`);
+    this.name = 'ResponseSizeError';
+    this.limit = limit;
+  }
+}
+
 /** Thrown when a `schema` or `bodySchema` rejects a value; `issues` are the validator's. */
 export class ValidationError extends Error {
   readonly issues: ReadonlyArray<StandardSchemaV1.Issue>;
@@ -134,6 +145,7 @@ export function classifyProblem(status?: number, error?: Error): PROBLEM_CODE {
     if (name === 'CancelError') return PROBLEM_CODE.CANCEL_ERROR;
     if (name === 'ParseError') return PROBLEM_CODE.PARSE_ERROR;
     if (name === 'ValidationError') return PROBLEM_CODE.VALIDATION_ERROR;
+    if (name === 'ResponseSizeError') return PROBLEM_CODE.RESPONSE_TOO_LARGE;
     if (name === 'AbortError' || message.includes('aborted')) {
       return message.includes('timeout') ? PROBLEM_CODE.TIMEOUT_ERROR : PROBLEM_CODE.CANCEL_ERROR;
     }
@@ -197,6 +209,9 @@ export function buildRefetchError(
         contentType: error instanceof ParseError ? error.contentType : (contentType ?? null),
         cause: error,
       };
+
+    case PROBLEM_CODE.RESPONSE_TOO_LARGE:
+      return { kind: 'size', limit: (error as ResponseSizeError).limit, cause: error };
 
     case PROBLEM_CODE.VALIDATION_ERROR:
       return { kind: 'validation', issues: (error as ValidationError).issues ?? [], cause: error };
@@ -285,6 +300,15 @@ export class RefetchParseError<T = unknown> extends RefetchResponseError<T> {
   declare readonly kind: 'parse';
 }
 
+/** The body exceeded `maxResponseSize`; `cause` is the `ResponseSizeError`. */
+export class RefetchSizeError<T = unknown> extends RefetchResponseError<T> {
+  declare readonly kind: 'size';
+
+  get limit(): number {
+    return (this.response.error as { limit: number }).limit;
+  }
+}
+
 /** A `schema` or `bodySchema` rejected the data; `data` is the unvalidated body. */
 export class RefetchValidationError<T = unknown> extends RefetchResponseError<T> {
   declare readonly kind: 'validation';
@@ -305,6 +329,7 @@ const RESPONSE_ERRORS = {
   network: RefetchNetworkError,
   cancel: RefetchCancelError,
   parse: RefetchParseError,
+  size: RefetchSizeError,
   validation: RefetchValidationError,
   unknown: RefetchUnknownError,
 };

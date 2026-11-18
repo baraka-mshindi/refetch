@@ -28,6 +28,20 @@ You will get an acknowledgement within **3 business days**. Confirmed vulnerabil
 
 Vulnerabilities in the runtime's `fetch` implementation itself should go to the respective runtime (Node.js, Bun, Deno, browsers).
 
+## Threat model
+
+What the library defends against by default, and what it leaves to you:
+
+| Threat | Default | Your part |
+|---|---|---|
+| A bearer token sent to another origin through an absolute URL from untrusted data | `withAuth` only attaches the token to the base URL's origin | Pass `origins` explicitly on instances without a `baseURL`; do not use `origins: 'any'` with untrusted URLs |
+| Custom credential headers (`X-API-Key`) following a cross-origin redirect | Not handled: `fetch` only strips `Authorization` | Use `redirect: 'manual'` or `'error'` when sending such headers |
+| Memory exhaustion from an oversized or endless response | No cap unless `maxResponseSize` is set | Set `maxResponseSize` for untrusted servers |
+| A hostile `Retry-After` parking a request | Capped by `maxRetryAfter` (60 s) | Lower it if needed |
+| Prototype pollution through `__proto__` keys in JSON | `JSON.parse` is used as is | Supply a hardened `parseJson` if bodies are merged into objects |
+| Credentials in logs and error reports | `response.request.headers` is redacted; thrown errors keep `request`, `response` and `headers` non-enumerable | Do not log `request.config`; scrub error bodies (`data`) if your API echoes secrets |
+| CSRF in browsers | `fetch` defaults are untouched (`credentials: 'same-origin'`) | Protect state-changing endpoints server-side when using `credentials: 'include'` |
+
 ## Supply chain
 
 - Releases are published only from GitHub Actions through npm trusted publishing (OIDC) with provenance; no long-lived npm tokens exist.

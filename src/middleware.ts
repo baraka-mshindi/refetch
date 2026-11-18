@@ -3,15 +3,48 @@ import type { RefetchInstance, RequestConfig } from './types';
 
 type InstanceMiddleware = (instance: RefetchInstance) => RefetchInstance;
 
+export interface AuthOptions {
+  /**
+   * Where the token may be sent. `'baseURL'` (default): only to the origin of the request's
+   * base URL, so an absolute URL pointing elsewhere never receives it. An array lists the
+   * allowed origins explicitly. `'any'` sends it everywhere.
+   */
+  origins?: 'baseURL' | 'any' | string[];
+}
+
+function originOf(url: string): string | undefined {
+  try {
+    // Relative base URLs resolve against the page in browsers.
+    return new URL(url, globalThis.location?.href).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Injects an Authorization header before every request.
- * `getToken` is called per-request so tokens are always fresh.
+ * Injects `Authorization: Bearer <token>` into requests bound for an allowed origin (see
+ * `AuthOptions.origins`). `getToken` is called per request so tokens are always fresh, and is
+ * not called for requests that will not carry the token. An instance without a base URL has
+ * no origin to scope to, so the default then attaches the token to every request.
  */
-export function withAuth(getToken: () => string | Promise<string>): InstanceMiddleware {
+export function withAuth(
+  getToken: () => string | Promise<string>,
+  options: AuthOptions = {},
+): InstanceMiddleware {
+  const origins = options.origins ?? 'baseURL';
   return (instance) => {
-    instance.interceptors.request.use(async (config: RequestConfig) =>
-      setRequestHeader(config, 'Authorization', `Bearer ${await getToken()}`),
-    );
+    instance.interceptors.request.use(async (config: RequestConfig) => {
+      const base = config.baseURL ?? instance.getBaseURL();
+      if (origins !== 'any' && (base || origins !== 'baseURL')) {
+        const allowed = origins === 'baseURL' ? [originOf(base as string)] : origins.map(originOf);
+        // Mirrors `buildUrl`: only an absolute http(s) URL leaves the base origin.
+        const url = config.url ?? '';
+        const absolute = url.startsWith('http://') || url.startsWith('https://');
+        const target = originOf(absolute || !base ? url : base);
+        if (!target || !allowed.includes(target)) return config;
+      }
+      return setRequestHeader(config, 'Authorization', `Bearer ${await getToken()}`);
+    });
     return instance;
   };
 }

@@ -4,6 +4,7 @@ import {
   CancelError,
   NetworkError,
   ParseError,
+  ResponseSizeError,
   TimeoutError,
   toResponseError,
   ValidationError,
@@ -11,7 +12,12 @@ import {
 import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch';
 import { headersToObject, mergeHeaders } from './headers';
 import { createInterceptorManager } from './interceptors';
-import { normalizeErrorResponse, normalizeSuccessResponse, parseResponseBody } from './response';
+import {
+  limitResponseSize,
+  normalizeErrorResponse,
+  normalizeSuccessResponse,
+  parseResponseBody,
+} from './response';
 import {
   DEFAULT_MAX_RETRY_AFTER,
   getRetryDelay,
@@ -57,6 +63,7 @@ const REFETCH_KEYS = [
   'stringifyJson',
   'schema',
   'bodySchema',
+  'maxResponseSize',
   'signal',
   'headers',
 ] as const;
@@ -339,7 +346,10 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       // The same signal bounds the body read, so a timeout or cancel here surfaces as such.
       let data: unknown;
       try {
-        data = await parseResponseBody<T>(response, {
+        const readable = config.maxResponseSize
+          ? limitResponseSize(response, config.maxResponseSize)
+          : response;
+        data = await parseResponseBody<T>(readable, {
           // A failed request is read normally so the error body stays inspectable.
           responseType: response.ok || responseType !== 'stream' ? responseType : 'auto',
           parseJson: config.parseJson,
@@ -353,6 +363,11 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         }
       } catch (error) {
         if (attempt.signal.aborted) throw abortReasonToError(attempt.signal.reason);
+        if (error instanceof ResponseSizeError) {
+          const failure = normalizeErrorResponse<T>(error, response, duration);
+          failure.request = resolved;
+          return await finalize(failure);
+        }
         if (error instanceof ParseError) {
           // An unreadable error body must not mask the HTTP failure; keep the raw text instead.
           if (!response.ok) {

@@ -4,11 +4,11 @@
 [![npm](https://img.shields.io/npm/v/%40mshindi-labs%2Frefetch)](https://www.npmjs.com/package/@mshindi-labs/refetch)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mshindi-labs/refetch/badge)](https://scorecard.dev/viewer/?uri=github.com/mshindi-labs/refetch)
 
-A modern, production-grade HTTP client built on native `fetch` — pure functional TypeScript, interceptors, retry, streaming, and tree-shakeable exports.
+A modern, production-grade HTTP client built on native `fetch` — composable, class-free TypeScript, interceptors, retry, streaming, and tree-shakeable exports.
 
 ## Features
 
-- **Pure functional TypeScript** — no classes, no `this`, compose via `pipe()`
+- **Composable, class-free API** — a factory and plain functions, no `this`, compose via `pipe()` (instances are stateful: `setHeader`, `setBaseURL` and `interceptors.use` change them in place)
 - **Interceptors** — axios-style request/response middleware with ID-based ejection
 - **Discriminated error union** (`RefetchError`) for precise narrowing per error kind
 - **Retry** — per-request and instance-wide, fully configurable with custom delay/condition
@@ -377,6 +377,12 @@ All native `fetch` body types are passed through without transformation. `Conten
 
 If you explicitly set `Content-Type` in your request headers, it takes precedence (except FormData, where it is always removed to preserve the browser-managed boundary).
 
+**String bodies are sent as JSON.** A `string` body is assumed to be pre-serialised JSON and gets `Content-Type: application/json`. For plain text or any other format, set the header yourself:
+
+```typescript
+await api.post('/notes', 'hello', { headers: { 'Content-Type': 'text/plain' } });
+```
+
 **Streaming request bodies** are one-shot: the stream is consumed by the first attempt, so such requests are never retried. In browsers they need HTTP/2 or HTTP/3 over HTTPS and are not supported by Safari; Node, Bun and Deno support them over HTTP/1.1 too.
 
 **Form-encoded body:**
@@ -514,12 +520,12 @@ function useCreateUser() {
 | | refetch | axios | apisauce |
 |---|---|---|---|
 | Native `fetch` | ✅ | ❌ (XHR) | ❌ (wraps axios) |
-| Pure functional TS | ✅ | ❌ (class-based) | ❌ |
+| Class-free, composable API | ✅ | ❌ (class-based) | ❌ |
 | Tree-shakeable | ✅ | ❌ | ❌ (CJS only) |
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~4 KB gzip (11.5 KB raw ESM) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~6.3 KB gzip (v3.3.0, root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

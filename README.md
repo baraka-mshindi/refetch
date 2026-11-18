@@ -17,6 +17,7 @@ A modern, production-grade HTTP client built on native `fetch` — composable, c
 - **Streaming** — raw `ReadableStream` via `stream()` for any method, plus SSE and NDJSON decoders for LLM-style streams
 - **Progress** — `onDownloadProgress` and `onUploadProgress` callbacks
 - **Cancellation** — `createCancelToken()` wraps `AbortController`
+- **Child instances** — `extend()` derives a client that inherits config, interceptors and monitors
 - **Middleware HOFs** — `withAuth`, `withTimeout`, `withLogging`, `withHeaders`, `withBaseURL`
 - **Full body support** — JSON, `FormData`, `URLSearchParams`, `Blob`, `ArrayBuffer`, `ReadableStream`
 - **Full response parsing** — JSON, `+json` variants, form-encoded, binary, text, empty bodies; `responseType` override and pluggable `parseJson` / `stringifyJson`
@@ -633,6 +634,34 @@ api.setBaseURL('https://api-v2.example.com');
 api.getBaseURL();
 ```
 
+## Child Instances: `extend()`
+
+Derive a client for one feature or one upstream from a shared base. The child inherits the parent's config, interceptors and monitors, and from then on the two are independent.
+
+```typescript
+const api = pipe(create({ baseURL: 'https://api.example.com' }), withAuth(getToken), withLogging());
+
+const billing = api.extend({ headers: { 'X-Feature': 'billing' }, timeout: 30_000 });
+const reports = api.extend({ baseURL: 'https://reports.example.com', retry: 3 });
+```
+
+| Option passed to `extend()` | How it combines with the parent |
+|---|---|
+| `headers` | merged, case-insensitively; the child wins on a clash |
+| `retry` | merged field by field (a number is `{ attempts }`) |
+| `signal` | combined: aborting either cancels the child's requests |
+| everything else | the child's value replaces the parent's |
+
+Interceptors and monitors registered on the parent **before** the call are copied in the same order (they get new IDs on the child). Anything registered, ejected or changed afterwards, on either side, stays on that side.
+
+Pass a function to replace instead of merge. It receives a copy of the parent config and its result is used as is:
+
+```typescript
+const bare = api.extend((parent) => ({ baseURL: parent.baseURL })); // drops headers, retry, timeout…
+```
+
+Middleware still mutates the instance it is given: `pipe(api, withHeaders(…))` changes `api`. To add middleware to a child only, extend first: `pipe(api.extend(), withHeaders(…))`.
+
 ## Monitors
 
 Observe all responses after transforms — fire-and-forget (exceptions caught internally):
@@ -720,7 +749,7 @@ function useCreateUser() {
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~7.8 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~8 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

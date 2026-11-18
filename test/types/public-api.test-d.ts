@@ -258,4 +258,12 @@ describe('public API types', () => {
       RequestConfig['onDownloadProgress']
     >();
   });
+
+  it('types extend() with an object or a function', () => {
+    expectTypeOf(api.extend({ timeout: 1 })).toEqualTypeOf<RefetchInstance>();
+    expectTypeOf(api.extend((parent) => parent)).toEqualTypeOf<RefetchInstance>();
+    expectTypeOf(api.extend)
+      .parameter(0)
+      .toEqualTypeOf<RefetchConfig | ((parent: RefetchConfig) => RefetchConfig) | undefined>();
+  });
 });

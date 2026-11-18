@@ -5,8 +5,6 @@ import {
   PROBLEM_CODE,
   type RefetchInstance,
   type RequestConfig,
-  type RequestTransform,
-  type ResponseTransform,
   setRequestHeader,
 } from '../../src/index';
 import { asError, asOk } from '../helpers/assert';
@@ -318,56 +316,19 @@ describe('monitors', () => {
   });
 });
 
-describe('deprecated transforms', () => {
-  it('mutate the request config and the response in place', async () => {
-    const local = create({ baseURL: server.baseURL });
-    local.addRequestTransform((config) => {
-      config.headers = { ...plainHeaders(config), 'X-Transform': 't' };
-    });
-    local.addResponseTransform((response) => {
-      Object.assign(response, { data: { ...(response.data as object), transformed: true } });
-    });
-
-    const result = asOk(await local.get<EchoPayload & { transformed: boolean }>('/echo'));
-    expect(result.data.headers['x-transform']).toBe('t');
-    expect(result.data.transformed).toBe(true);
-  });
-
-  it('support async transforms', async () => {
-    const local = create({ baseURL: server.baseURL });
-    local.addRequestTransform(async (config) => {
-      await Promise.resolve();
-      config.headers = { 'X-Async': 'yes' };
-    });
-    expect(asOk(await local.get<EchoPayload>('/echo')).data.headers['x-async']).toBe('yes');
-  });
-
-  it('can be removed by reference and cleared', async () => {
-    const local = create({ baseURL: server.baseURL });
-    const transform = (config: RequestConfig) => {
-      config.headers = { 'X-Transform': 't' };
-    };
-
-    local.addRequestTransform(transform);
-    expect(local.removeRequestTransform(transform)).toBe(true);
-    expect(local.removeRequestTransform(transform)).toBe(false);
-    expect(asOk(await local.get<EchoPayload>('/echo')).data.headers['x-transform']).toBeUndefined();
-
-    local.addRequestTransform(transform);
-    local.clearRequestTransforms();
-    expect(asOk(await local.get<EchoPayload>('/echo')).data.headers['x-transform']).toBeUndefined();
-
-    const responseTransform: ResponseTransform = () => undefined;
-    local.addResponseTransform(responseTransform);
-    expect(local.removeResponseTransform(responseTransform)).toBe(true);
-    local.addResponseTransform(responseTransform);
-    local.clearResponseTransforms();
-    expect(local.removeResponseTransform(responseTransform)).toBe(false);
-  });
-
-  it('reject non-function transforms', () => {
-    expect(() => api.addRequestTransform('nope' as unknown as RequestTransform)).toThrow(TypeError);
-    expect(() => api.addResponseTransform(1 as unknown as ResponseTransform)).toThrow(TypeError);
+describe('transform aliases (removed in v4)', () => {
+  it('are gone from the instance', () => {
+    const instance = api as unknown as Record<string, unknown>;
+    for (const name of [
+      'addRequestTransform',
+      'addResponseTransform',
+      'removeRequestTransform',
+      'removeResponseTransform',
+      'clearRequestTransforms',
+      'clearResponseTransforms',
+    ]) {
+      expect(instance[name]).toBeUndefined();
+    }
   });
 });
 

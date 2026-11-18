@@ -683,7 +683,7 @@ Middleware still mutates the instance it is given: `pipe(api, withHeaders(…))`
 
 ## Monitors
 
-Observe all responses after transforms — fire-and-forget (exceptions caught internally):
+Observe all responses after the response interceptors — fire-and-forget (exceptions caught internally):
 
 ```typescript
 api.addMonitor((response) => {
@@ -711,29 +711,6 @@ import type {
   InterceptorHandler,
   Monitor,
 } from '@mshindi-labs/refetch';
-```
-
-## Deprecated: Transforms
-
-Mutation-based transforms are still supported for backward compatibility. Prefer interceptors for new code:
-
-```typescript
-// Deprecated — still works
-api.addRequestTransform((config) => {
-  config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
-});
-api.addResponseTransform((response) => {
-  if (response.ok) response.data = normalize(response.data);
-});
-api.removeRequestTransform(fn);
-api.clearRequestTransforms();
-
-// Preferred — return-based, removable by ID
-const id = api.interceptors.request.use((config) => ({
-  ...config,
-  headers: { ...config.headers, Authorization: `Bearer ${token}` },
-}));
-api.interceptors.request.eject(id);
 ```
 
 ## Integration with TanStack Query
@@ -783,6 +760,15 @@ Where refetch differs by design: failures are returned as values with a discrimi
 
 ## Migration from v3
 
+**Transforms are removed.** `addRequestTransform`, `addResponseTransform`, `removeRequestTransform`, `removeResponseTransform`, `clearRequestTransforms` and `clearResponseTransforms` (deprecated since 3.0) are gone, along with the `RequestTransform` / `ResponseTransform` types. Use interceptors, which return the new value instead of mutating:
+
+| v3 | v4 |
+|---|---|
+| `api.addRequestTransform((config) => { config.headers.x = '1'; })` | `const id = api.interceptors.request.use((config) => setRequestHeader(config, 'x', '1'))` |
+| `api.addResponseTransform((response) => { response.data = wrap(response.data); })` | `api.interceptors.response.use((response) => ({ ...response, data: wrap(response.data) }))` |
+| `api.removeRequestTransform(fn)` | `api.interceptors.request.eject(id)` |
+| `api.clearRequestTransforms()` | `api.interceptors.request.clear()` |
+
 **Runtime baseline.** Node 22 or newer (`engines`; Node 20 reached end of life on 2026-04-30). In browsers and other runtimes `AbortSignal.any` is now required: Chrome / Edge 116, Firefox 124, Safari 17.4, Bun and Deno. The package still ships both ESM and CommonJS builds.
 
 **Retry defaults are stricter.** With `retry` enabled and nothing else configured, v3 retried every method on any failure except 400 / 401 / 403 / 404 / 422, immediately. v4 retries only `GET` `HEAD` `PUT` `DELETE` `OPTIONS` `TRACE` `QUERY`, only on 408 / 413 / 429 / 500 / 502 / 503 / 504 or a transport failure, and waits a jittered exponential back-off (300 ms base, 30 s cap). To keep the old behaviour for a call: `retry: { attempts: 3, delay: 0, methods: ['POST'], statusCodes: [...] }` or a `condition`. An explicit `delay` is still fixed and unjittered.
@@ -796,7 +782,7 @@ Where refetch differs by design: failures are returned as values with a discrimi
 
 ## Migration from v2
 
-**Interceptors replace transforms** (transforms still work, but are deprecated):
+**Interceptors replace transforms** (transforms were removed in v4):
 
 ```typescript
 // v2

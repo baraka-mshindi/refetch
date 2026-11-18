@@ -47,6 +47,7 @@ import type {
   RequestTransform,
   ResolvedRequest,
   ResponseTransform,
+  RetryConfig,
   ShortCircuit,
 } from './types';
 import { isErrorResponse } from './types';
@@ -777,6 +778,42 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     responseTransformIds.clear();
   }
 
+  // ─── Derived instances ──────────────────────────────────────────────────
+
+  function extend(
+    overrides: RefetchConfig | ((parent: RefetchConfig) => RefetchConfig) = {},
+  ): RefetchInstance {
+    const parent = state.config;
+    let config: RefetchConfig;
+    if (typeof overrides === 'function') {
+      config = overrides({ ...parent, headers: new Headers(parent.headers) });
+    } else {
+      const signals = [parent.signal, overrides.signal].filter((s) => s != null);
+      const asRetry = (retry: RefetchConfig['retry']) =>
+        typeof retry === 'number' ? { attempts: retry } : retry;
+      config = {
+        ...parent,
+        ...overrides,
+        headers: mergeHeaders(parent.headers, overrides.headers),
+        retry:
+          overrides.retry === undefined
+            ? parent.retry
+            : ({ ...asRetry(parent.retry), ...asRetry(overrides.retry) } as RetryConfig),
+        signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0],
+      };
+    }
+
+    const child = create(config);
+    for (const { onFulfilled, onRejected } of state.requestInterceptors.getAll()) {
+      child.interceptors.request.use(onFulfilled, onRejected);
+    }
+    for (const { onFulfilled, onRejected } of state.responseInterceptors.getAll()) {
+      child.interceptors.response.use(onFulfilled, onRejected);
+    }
+    for (const monitor of state.monitors) child.addMonitor(monitor);
+    return child;
+  }
+
   // ─── Monitors ───────────────────────────────────────────────────────────
 
   function addMonitor(monitor: Monitor): void {
@@ -854,6 +891,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
     clearRequestTransforms,
     clearResponseTransforms,
     clearMonitors,
+    extend,
     setHeader,
     setHeaders,
     deleteHeader,

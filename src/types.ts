@@ -419,6 +419,15 @@ export interface RefetchInstance {
   clearResponseTransforms(): void;
   clearMonitors(): void;
 
+  /**
+   * Derives an independent child instance. With an object, the child's config is the parent's
+   * with the overrides applied: headers are merged case-insensitively, `retry` is merged
+   * field by field, and `signal`s are combined so either aborts. With a function, the returned
+   * config is used as is (replace, not merge). Interceptors and monitors registered so far are
+   * copied in order; later changes to either instance do not affect the other.
+   */
+  extend(overrides?: RefetchConfig | ((parent: RefetchConfig) => RefetchConfig)): RefetchInstance;
+
   setHeader(name: string, value: string): void;
   setHeaders(headers: Record<string, string>): void;
   deleteHeader(name: string): void;

@@ -12,6 +12,28 @@ export function shouldHaveBody(method: string, data?: unknown): boolean {
 }
 
 /**
+ * True where `fetch` can send a `ReadableStream` body (Node, Bun, Deno, Chromium; not Firefox
+ * or Safari). Standard feature test: a supporting runtime reads `duplex` and does not treat
+ * the stream as a string body with a text Content-Type.
+ */
+export function supportsRequestStreams(): boolean {
+  let duplexRead = false;
+  try {
+    const hasContentType = new Request('http://localhost', {
+      body: new ReadableStream(),
+      method: 'POST',
+      get duplex() {
+        duplexRead = true;
+        return 'half';
+      },
+    } as RequestInit).headers.has('Content-Type');
+    return duplexRead && !hasContentType;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Coerce `data` to a value that native `fetch` accepts as a `body`.
  *
  * Pass-through types (no transformation):

@@ -229,6 +229,25 @@ export async function startTestServer(): Promise<TestServer> {
         await wait(10);
         res.write(':2}\r\n\n');
         return res.end('{"n":3}');
+      case '/sized': {
+        // Like /big, but declares Content-Length so download progress has a total.
+        const total = Number(url.searchParams.get('bytes') ?? '0');
+        const chunk = Buffer.alloc(16 * 1024, 'b');
+        res.writeHead(200, { 'content-type': 'text/plain', 'content-length': String(total) });
+        for (let written = 0; written < total && !res.destroyed; written += chunk.length) {
+          res.write(chunk.subarray(0, Math.min(chunk.length, total - written)));
+          await wait(1);
+        }
+        return res.end();
+      }
+      case '/upload':
+        return json(res, 200, {
+          received: Buffer.byteLength(body),
+          contentType: req.headers['content-type'] ?? null,
+          contentLength: req.headers['content-length'] ?? null,
+          transferEncoding: req.headers['transfer-encoding'] ?? null,
+          head: body.slice(0, 200),
+        });
       case '/big-json':
         return raw(res, 200, 'application/json', '{"id":9007199254740993}');
       default:

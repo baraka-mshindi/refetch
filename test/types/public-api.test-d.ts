@@ -8,6 +8,7 @@ import {
   isErrorResponse,
   isOkResponse,
   isRefetchError,
+  type Progress,
   type QueryParams,
   type RefetchConfig,
   type RefetchError,
@@ -239,5 +240,22 @@ describe('public API types', () => {
     expectTypeOf(
       api.stream('/chat', undefined, { method: 'POST', data: { prompt: 'hi' } }),
     ).resolves.toEqualTypeOf<ApiResponse<ReadableStream<Uint8Array>>>();
+  });
+
+  it('types the progress callbacks', () => {
+    api.get('/file', undefined, {
+      onDownloadProgress: (progress, chunk) => {
+        expectTypeOf(progress).toEqualTypeOf<Progress>();
+        expectTypeOf(chunk).toEqualTypeOf<Uint8Array>();
+      },
+    });
+    expectTypeOf<Progress>().toEqualTypeOf<{
+      transferredBytes: number;
+      totalBytes: number;
+      percent: number;
+    }>();
+    expectTypeOf<RequestConfig['onUploadProgress']>().toEqualTypeOf<
+      RequestConfig['onDownloadProgress']
+    >();
   });
 });

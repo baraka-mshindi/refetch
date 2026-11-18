@@ -64,6 +64,8 @@ export type {
   Monitor,
   ParamsSerializer,
   ParseJson,
+  Progress,
+  ProgressCallback,
   QueryParams,
   RefetchConfig,
   RefetchError,

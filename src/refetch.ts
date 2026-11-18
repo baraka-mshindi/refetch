@@ -1,4 +1,9 @@
-import { getBodyContentType, prepareRequestBody, shouldHaveBody } from './body';
+import {
+  getBodyContentType,
+  prepareRequestBody,
+  shouldHaveBody,
+  supportsRequestStreams,
+} from './body';
 import { DEFAULT_HEADERS } from './constants';
 import {
   CancelError,
@@ -13,9 +18,10 @@ import { type AttemptSignal, createAttemptSignal, resolveTimeout } from './fetch
 import { headersToObject, mergeHeaders } from './headers';
 import { createInterceptorManager } from './interceptors';
 import {
-  limitResponseSize,
+  type ByteObserver,
   normalizeErrorResponse,
   normalizeSuccessResponse,
+  observeBytes,
   parseResponseBody,
 } from './response';
 import {
@@ -32,6 +38,7 @@ import type {
   AsyncRequestTransform,
   AsyncResponseTransform,
   Monitor,
+  ProgressCallback,
   QueryParams,
   RefetchConfig,
   RefetchInstance,
@@ -64,6 +71,8 @@ const REFETCH_KEYS = [
   'schema',
   'bodySchema',
   'maxResponseSize',
+  'onDownloadProgress',
+  'onUploadProgress',
   'signal',
   'headers',
 ] as const;
@@ -79,6 +88,18 @@ async function validate<T>(schema: StandardSchemaV1, value: unknown): Promise<T>
   const result = await schema['~standard'].validate(value);
   if (result.issues) throw new ValidationError(result.issues);
   return result.value as T;
+}
+
+/** Adapts a user progress callback to a byte observer; a throwing callback is logged, not fatal. */
+function reportProgress(callback: ProgressCallback, totalBytes: number): ByteObserver {
+  return (transferredBytes, chunk, done) => {
+    const percent = done ? 1 : totalBytes ? Math.min(transferredBytes / totalBytes, 1) : 0;
+    try {
+      callback({ transferredBytes, totalBytes, percent }, chunk);
+    } catch (error) {
+      console.error('Progress callback error:', error);
+    }
+  };
 }
 
 function isShortCircuit(value: unknown): value is ShortCircuit {
@@ -299,7 +320,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         config.params,
         config.paramsSerializer,
       );
-      const body = shouldHaveBody(method, config.data)
+      let body = shouldHaveBody(method, config.data)
         ? prepareRequestBody(config.data, config.stringifyJson)
         : undefined;
 
@@ -323,6 +344,30 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
         headers.set('Content-Type', bodyContentType);
       }
 
+      // Upload progress: send the body as a counted stream where the runtime allows it,
+      // otherwise send it unchanged and report 100 % once the response arrives.
+      let uploaded: (() => void) | undefined;
+      if (config.onUploadProgress && body !== undefined) {
+        let source = isStream(body) ? (body as ReadableStream<Uint8Array>) : undefined;
+        let total = 0;
+        if (!source) {
+          // Serialising through a Response gives the byte size and, for FormData, the multipart
+          // type. Take the type from the header: Blob.type is lower-cased, which would corrupt
+          // a case-sensitive boundary.
+          const serialised = new Response(body);
+          const type = serialised.headers.get('content-type');
+          const blob = await serialised.blob();
+          total = blob.size;
+          if (supportsRequestStreams() && !config.keepalive && config.mode !== 'no-cors') {
+            if (!headers.has('Content-Type') && type) headers.set('Content-Type', type);
+            source = blob.stream();
+          }
+        }
+        const report = reportProgress(config.onUploadProgress, total);
+        if (source) body = observeBytes(source, undefined, report);
+        else uploaded = () => report(total, new Uint8Array(), true);
+      }
+
       resolved = describeRequest(config, attemptNumber, fullUrl, headers);
 
       let response: Response;
@@ -338,6 +383,7 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
           signal: attempt.signal,
         });
         transportFailed = false;
+        uploaded?.();
       } catch (error) {
         throw resolveFailure(error, attempt.signal, true);
       }
@@ -346,9 +392,22 @@ export function create(config: RefetchConfig = {}): RefetchInstance {
       // The same signal bounds the body read, so a timeout or cancel here surfaces as such.
       let data: unknown;
       try {
-        const readable = config.maxResponseSize
-          ? limitResponseSize(response, config.maxResponseSize)
-          : response;
+        const { maxResponseSize, onDownloadProgress } = config;
+        let readable = response;
+        if (response.body && (maxResponseSize || onDownloadProgress)) {
+          // A compressed body is counted after decompression, so its Content-Length is no total.
+          const total = response.headers.get('content-encoding')
+            ? 0
+            : Number(response.headers.get('content-length')) || 0;
+          readable = new Response(
+            observeBytes(
+              response.body,
+              maxResponseSize,
+              onDownloadProgress && reportProgress(onDownloadProgress, total),
+            ),
+            response,
+          );
+        }
         data = await parseResponseBody<T>(readable, {
           // A failed request is read normally so the error body stays inspectable.
           responseType: response.ok || responseType !== 'stream' ? responseType : 'auto',

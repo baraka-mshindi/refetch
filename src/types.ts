@@ -203,6 +203,17 @@ export interface BodyOptions {
   maxResponseSize?: number;
 }
 
+/** Transfer progress. `totalBytes` is 0 when the size is unknown. */
+export interface Progress {
+  transferredBytes: number;
+  totalBytes: number;
+  /** 0 to 1. Stays 0 while the size is unknown, and is 1 on the final call. */
+  percent: number;
+}
+
+/** Called for every chunk, then once more with an empty chunk when the transfer is complete. */
+export type ProgressCallback = (progress: Progress, chunk: Uint8Array) => void;
+
 /** `true` rejects on every error response; a predicate picks which ones reject. */
 export type ThrowOnError = boolean | ((response: ApiErrorResponse<unknown>) => boolean);
 
@@ -235,6 +246,19 @@ export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'>, Bod
   schema?: StandardSchemaV1;
   /** Validates `data` before it is serialised; a mismatch fails without a network call. */
   bodySchema?: StandardSchemaV1;
+  /**
+   * Download progress, counted in bytes after decompression. `totalBytes` comes from
+   * `Content-Length` and is 0 when that is absent or the body is compressed. With
+   * `responseType: 'stream'` it fires as you read the stream. Errors thrown here are logged
+   * and ignored.
+   */
+  onDownloadProgress?: ProgressCallback;
+  /**
+   * Upload progress. Where the runtime can stream request bodies (Node, Bun, Deno, Chromium
+   * over HTTP/2) the body is sent as a stream and this fires per chunk; elsewhere, and for
+   * `keepalive` or `no-cors` requests, it fires once at 100 % when the response arrives.
+   */
+  onUploadProgress?: ProgressCallback;
 }
 
 /**

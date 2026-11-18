@@ -34,7 +34,9 @@ export function withAuth(
   const origins = options.origins ?? 'baseURL';
   return (instance) => {
     instance.interceptors.request.use(async (config: RequestConfig) => {
-      const base = config.baseURL ?? instance.getBaseURL();
+      // `||`, not `??`: must resolve the base exactly as the request path does, or an empty
+      // per-request baseURL would turn scoping off while the instance base is still used.
+      const base = config.baseURL || instance.getBaseURL();
       if (origins !== 'any' && (base || origins !== 'baseURL')) {
         const allowed = origins === 'baseURL' ? [originOf(base as string)] : origins.map(originOf);
         // Mirrors `buildUrl`: only an absolute http(s) URL leaves the base origin.

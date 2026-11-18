@@ -62,6 +62,21 @@ describe('withAuth origin scoping', () => {
     expect(response.data.headers.authorization).toBe('Bearer T');
   });
 
+  it('cannot be switched off by an empty per-request baseURL', async () => {
+    const api = pipe(
+      create({ baseURL: server.baseURL }),
+      withAuth(() => 'T'),
+    );
+    const response = asOk(
+      await api.get<EchoPayload>(`${other.baseURL}/echo`, undefined, { baseURL: '' }),
+    );
+    expect(response.data.headers.authorization).toBeUndefined();
+
+    // The instance base is still what a relative URL resolves against, and it is in scope.
+    const relative = asOk(await api.get<EchoPayload>('/echo', undefined, { baseURL: '' }));
+    expect(relative.data.headers.authorization).toBe('Bearer T');
+  });
+
   it('sends the token to extra origins that are listed explicitly', async () => {
     const api = pipe(
       create({ baseURL: server.baseURL }),

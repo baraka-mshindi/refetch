@@ -247,7 +247,14 @@ describe('response interceptors', () => {
     const local = create({ baseURL: server.baseURL });
     local.interceptors.response.use((response) =>
       response.status === 404
-        ? { ...response, ok: true, problem: null, data: { recovered: true } }
+        ? {
+            ...response,
+            ok: true,
+            problem: null,
+            originalError: null,
+            status: 200,
+            data: { recovered: true },
+          }
         : response,
     );
     expect(asOk(await local.get('/status/404')).data).toEqual({ recovered: true });

@@ -131,11 +131,8 @@ export interface ShortCircuit<T = unknown> {
 
 export type RequestInterceptorResult = RequestConfig | ShortCircuit;
 
-export interface ApiResponse<T> {
-  ok: boolean;
-  problem: ProblemCode | null;
-  originalError: Error | null;
-  data?: T;
+/** Fields every response carries, whichever branch it is. */
+interface ApiResponseBase {
   status?: number;
   headers?: Record<string, string>;
   duration?: number;
@@ -144,20 +141,38 @@ export interface ApiResponse<T> {
   request?: ResolvedRequest;
 }
 
-export interface ApiOkResponse<T> extends ApiResponse<T> {
+/** A 2xx response whose body was read (and validated, if a schema was given). */
+export interface ApiOkResponse<T> extends ApiResponseBase {
   ok: true;
   problem: null;
+  originalError: null;
   data: T;
   status: number;
 }
 
-export interface ApiErrorResponse<T> extends ApiResponse<T> {
+/**
+ * A failed request. `E` types the error body in `data`; it is `unknown` unless you assert
+ * otherwise, because an error body rarely has the shape of the success type.
+ */
+export interface ApiErrorResponse<E = unknown> extends ApiResponseBase {
   ok: false;
   problem: ProblemCode;
   /** Discriminated union for precise narrowing — use instead of or alongside `problem`. */
   error: RefetchError;
   originalError: Error | null;
+  /** The parsed error body, or the raw text when it could not be parsed. */
+  data?: E;
 }
+
+/**
+ * The result of every request: check `ok` to narrow.
+ *
+ * @example
+ * const response = await api.get<User>('/users/1');
+ * if (response.ok) response.data; // User
+ * else response.error.kind;       // 'http' | 'timeout' | …
+ */
+export type ApiResponse<T> = ApiOkResponse<T> | ApiErrorResponse;
 
 /** Known methods for autocomplete; any other string (e.g. `PROPFIND`) is accepted too. */
 export type HttpMethod =

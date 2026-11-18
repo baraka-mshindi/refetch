@@ -48,7 +48,7 @@ if (response.ok) {
 
 ## HTTP Methods
 
-`GET`, `HEAD`, and `DELETE` take a single response generic. `POST`, `PUT`, and `PATCH` take two — response type and body type:
+`GET`, `HEAD`, `DELETE` and `OPTIONS` take a single response generic. `POST`, `PUT`, `PATCH` and `QUERY` take two — response type and body type:
 
 ```typescript
 // Read
@@ -62,13 +62,28 @@ const patched = await api.patch<User, Partial<User>>('/users/1', { name: 'New' }
 
 // Other
 await api.delete('/users/1');
+await api.delete('/users', undefined, { data: { ids: [1, 2, 3] } }); // DELETE with a body
 await api.head('/health');
+await api.options('/users');
+
+// QUERY (RFC 10008): a safe, idempotent read whose body defines the query
+const found = await api.query<User[], UserFilter>('/users/search', { role: 'admin', active: true });
 await api.link('/images/1.jpg', {}, { headers: { Link: '<...>; rel="tag"' } });
 await api.unlink('/images/1.jpg', {}, { headers: { Link: '<...>; rel="tag"' } });
 
 // Any HTTP verb
 await api.any({ method: 'PROPFIND', url: '/dav', headers: { Depth: '1' } });
 ```
+
+| Method | Second argument | Body |
+|---|---|---|
+| `get`, `head` | query params | never (fetch rejects a body on GET / HEAD) |
+| `delete`, `options` | query params | only when `config.data` is set |
+| `post`, `put`, `patch`, `query` | body | yes |
+| `link`, `unlink` | body | yes |
+| `any({ method, … })` | — | `config.data`, by the rules above |
+
+`QUERY` gets its `Content-Type` from the body like any other request (`application/json` for objects); set the header yourself for other query languages. It is safe to retry, and the retry policy treats it like any other method. `TRACE` has no helper: `fetch` refuses to send it.
 
 **Query params** accept a plain object (arrays repeat the key, `Date` values become ISO 8601 strings, `null`/`undefined` are omitted, nested objects throw a `TypeError` naming the key), a `URLSearchParams`, or `[key, value]` tuples. Pass `paramsSerializer` on the instance or the request to use another format:
 
@@ -616,7 +631,7 @@ function useCreateUser() {
 | Discriminated error union | ✅ | ❌ | ❌ |
 | Built-in retry | ✅ | ❌ | ❌ |
 | Built-in streaming | ✅ | limited | ❌ |
-| Bundle size | ~6.7 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
+| Bundle size | ~7 KB gzip (root entry) | ~60 KB | ~10 KB + axios |
 | Runtime dependencies | 0 | 0 | axios |
 
 ## Migration from v2

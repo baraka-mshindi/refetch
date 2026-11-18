@@ -4,6 +4,7 @@ import {
   type ApiOkResponse,
   type ApiResponse,
   create,
+  type HttpMethod,
   isErrorResponse,
   isOkResponse,
   isRefetchError,
@@ -178,5 +179,19 @@ describe('public API types', () => {
     });
     // @ts-expect-error unknown response types are rejected
     api.get('/x', undefined, { responseType: 'xml' });
+  });
+
+  it('types query() by response and body, options() by response, and method as an open union', () => {
+    expectTypeOf(
+      api.query<User[], { role: string }>('/users/search', { role: 'admin' }),
+    ).toEqualTypeOf<Promise<ApiResponse<User[]>>>();
+    // @ts-expect-error the body must match TBody
+    api.query<User[], { role: string }>('/users/search', { role: 1 });
+    expectTypeOf(api.options<User>('/users')).toEqualTypeOf<Promise<ApiResponse<User>>>();
+
+    expectTypeOf<RequestConfig['method']>().toEqualTypeOf<HttpMethod | undefined>();
+    expectTypeOf<'QUERY'>().toExtend<HttpMethod>();
+    expectTypeOf<'PROPFIND'>().toExtend<HttpMethod>();
+    api.delete('/users', undefined, { data: { ids: [1] } });
   });
 });

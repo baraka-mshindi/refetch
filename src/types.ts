@@ -143,6 +143,20 @@ export interface ApiErrorResponse<T> extends ApiResponse<T> {
   originalError: Error | null;
 }
 
+/** Known methods for autocomplete; any other string (e.g. `PROPFIND`) is accepted too. */
+export type HttpMethod =
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'PATCH'
+  | 'DELETE'
+  | 'HEAD'
+  | 'OPTIONS'
+  | 'QUERY'
+  | 'LINK'
+  | 'UNLINK'
+  | (string & {});
+
 /**
  * How the response body is read. `'auto'` (default) decides from `Content-Type`; the others
  * force one reader whatever the server declares. `'stream'` returns the unread
@@ -182,7 +196,7 @@ export type ThrowOnError = boolean | ((response: ApiErrorResponse<unknown>) => b
 
 export interface RequestConfig extends Omit<RequestInit, 'body' | 'method'>, BodyOptions {
   url?: string;
-  method?: string;
+  method?: HttpMethod;
   params?: QueryParams;
   /** Replaces the default query serialisation for this request. */
   paramsSerializer?: ParamsSerializer;
@@ -278,6 +292,7 @@ export interface RefetchInstance {
     config?: RequestConfig,
   ): Promise<ApiResponse<TResponse>>;
 
+  /** `DELETE` with query params; pass `config.data` to send a body (bulk deletes). */
   delete<T = unknown>(
     url: string,
     params?: QueryParams,
@@ -297,6 +312,23 @@ export interface RefetchInstance {
   ): Promise<ApiResponse<T>>;
 
   unlink<T = unknown>(
+    url: string,
+    params?: QueryParams,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<T>>;
+
+  /**
+   * RFC 10008 `QUERY`: a safe, idempotent request whose body defines the query. `Content-Type`
+   * is set from the body like any other request; pass your own for formats such as SQL.
+   */
+  query<TResponse = unknown, TBody = unknown>(
+    url: string,
+    data?: TBody,
+    config?: RequestConfig,
+  ): Promise<ApiResponse<TResponse>>;
+
+  /** `OPTIONS` with query params; pass `config.data` to send a body. */
+  options<T = unknown>(
     url: string,
     params?: QueryParams,
     config?: RequestConfig,

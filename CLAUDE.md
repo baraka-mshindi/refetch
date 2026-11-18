@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`@mshindi-labs/refetch` (v3.0.0) is a production-grade HTTP client built on native `fetch`. It is a pure functional TypeScript redesign — 14 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
+`@mshindi-labs/refetch` (3.x) is a production-grade HTTP client built on native `fetch`. It is a class-free, composable TypeScript design (a `create()` factory returning a stateful instance, plus plain functions) — 14 single-responsibility modules, return-based interceptors, discriminated error union (`RefetchError`), built-in retry, streaming, and tree-shakeable sub-path exports. It is a modern alternative to axios and apisauce with zero runtime dependencies.
 
 ## Development Commands
 

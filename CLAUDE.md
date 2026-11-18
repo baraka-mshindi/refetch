@@ -153,6 +153,8 @@ Each HOF has type `(instance: RefetchInstance) => RefetchInstance`. They registe
 ## Key Invariants
 
 - `utils.ts` does not exist
+- `withAuth` scopes the token to the base URL's origin by default (`AuthOptions.origins`: `'baseURL'` | `string[]` | `'any'`); it mirrors `buildUrl`'s absolute-URL test instead of importing it, to keep the `/middleware` entry small; without a base URL the default attaches everywhere
+- `maxResponseSize` wraps the response in `limitResponseSize()` (`response.ts`) before parsing; exceeding it throws `ResponseSizeError` → `{ kind: 'size', limit }` / `RESPONSE_TOO_LARGE`, with the status and headers kept, never retried
 - `finalize(response, schema?)` order is fixed: response interceptors → `schema` validation (ok responses only) → monitors. `bodySchema` runs in `send()` after request interceptors and before the retry loop; its failure is an attempt-0 error response
 - Validation failures are never retried (`isUnretryable` in `retry.ts`, duck-typed on `kind`); a validator that throws is `kind: 'unknown'`
 - Response data inference uses one signature per method with `SchemaData<T, C>`, not overloads: overloads break instantiation expressions such as `api.post<User, Dto>`

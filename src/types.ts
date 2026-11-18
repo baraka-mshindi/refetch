@@ -10,6 +10,7 @@ export enum PROBLEM_CODE {
   CANCEL_ERROR = 'CANCEL_ERROR',
   PARSE_ERROR = 'PARSE_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+  RESPONSE_TOO_LARGE = 'RESPONSE_TOO_LARGE',
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
@@ -31,6 +32,7 @@ export type RefetchError =
   | { kind: 'cancel'; reason?: string; cause: Error }
   | { kind: 'http'; status: number; statusText: string }
   | { kind: 'parse'; contentType: string | null; cause: Error }
+  | { kind: 'size'; limit: number; cause: Error }
   | { kind: 'validation'; issues: ReadonlyArray<StandardSchemaV1.Issue>; cause: Error }
   | { kind: 'unknown'; cause: Error };
 
@@ -193,6 +195,12 @@ export interface BodyOptions {
   parseJson?: ParseJson;
   /** Custom JSON serialiser for object and array bodies. */
   stringifyJson?: StringifyJson;
+  /**
+   * Largest response body to accept, in bytes after decompression. Reading stops at the cap
+   * and the result is an error response with `kind: 'size'`; it is never retried. With
+   * `responseType: 'stream'` the returned stream errors once the cap is passed.
+   */
+  maxResponseSize?: number;
 }
 
 /** `true` rejects on every error response; a predicate picks which ones reject. */

@@ -120,7 +120,7 @@ describe('public API types', () => {
 
   it('exposes RefetchError as a discriminated union on kind', () => {
     expectTypeOf<RefetchError['kind']>().toEqualTypeOf<
-      'network' | 'timeout' | 'cancel' | 'http' | 'parse' | 'validation' | 'unknown'
+      'network' | 'timeout' | 'cancel' | 'http' | 'parse' | 'size' | 'validation' | 'unknown'
     >();
     expectTypeOf<Extract<RefetchError, { kind: 'http' }>>().toEqualTypeOf<{
       kind: 'http';

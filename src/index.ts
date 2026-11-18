@@ -13,9 +13,11 @@ export {
   RefetchNetworkError,
   RefetchParseError,
   RefetchResponseError,
+  RefetchSizeError,
   RefetchTimeoutError,
   RefetchUnknownError,
   RefetchValidationError,
+  ResponseSizeError,
   TimeoutError,
   toResponseError,
   unwrap,
@@ -23,6 +25,7 @@ export {
 } from './errors';
 export { fetchWithTimeout } from './fetch';
 export { headersToObject, mergeHeaders, setRequestHeader } from './headers';
+export type { AuthOptions } from './middleware';
 export {
   withAuth,
   withBaseURL,

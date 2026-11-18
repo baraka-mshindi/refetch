@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -13,6 +14,8 @@ export interface TestServer {
   baseURL: string;
   /** Requests received for a pathname since the last reset. */
   hits(path: string): number;
+  /** Body bytes written for a pathname by the `/big` route since the last reset. */
+  bytesSent(path: string): number;
   resetHits(): void;
   close(): Promise<void>;
 }
@@ -61,6 +64,7 @@ export async function closedBaseURL(): Promise<string> {
  */
 export async function startTestServer(): Promise<TestServer> {
   const hits = new Map<string, number>();
+  const sent = new Map<string, number>();
   const flaky = new Map<string, number>();
   const closing = new AbortController();
   // Delays are cancelled on close so a slow route never keeps the worker alive.
@@ -176,6 +180,21 @@ export async function startTestServer(): Promise<TestServer> {
         await wait(20);
         res.write('data: two\n\n');
         return res.end();
+      case '/big': {
+        // Streams `bytes` bytes with back-pressure, so an aborting client stops the writes.
+        const total = Number(url.searchParams.get('bytes') ?? '0');
+        const chunk = Buffer.alloc(64 * 1024, 'a');
+        res.writeHead(200, { 'content-type': 'text/plain' });
+        let written = 0;
+        while (written < total && !res.destroyed) {
+          const size = Math.min(chunk.length, total - written);
+          const flushed = res.write(chunk.subarray(0, size));
+          written += size;
+          sent.set(path, written);
+          if (!flushed) await Promise.race([once(res, 'drain'), once(res, 'close')]);
+        }
+        return res.end();
+      }
       case '/big-json':
         return raw(res, 200, 'application/json', '{"id":9007199254740993}');
       default:
@@ -189,8 +208,10 @@ export async function startTestServer(): Promise<TestServer> {
   return {
     baseURL: `http://127.0.0.1:${port}`,
     hits: (path) => hits.get(path) ?? 0,
+    bytesSent: (path) => sent.get(path) ?? 0,
     resetHits: () => {
       hits.clear();
+      sent.clear();
       flaky.clear();
     },
     close: () =>

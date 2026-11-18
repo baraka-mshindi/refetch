@@ -1,5 +1,5 @@
 import { JSON_LIKE_RE } from './body';
-import { buildRefetchError, classifyProblem, ParseError } from './errors';
+import { buildRefetchError, classifyProblem, ParseError, ResponseSizeError } from './errors';
 import { headersToObject } from './headers';
 import type { ApiResponse, ParseJson, ResolvedRequest, ResponseBodyType } from './types';
 
@@ -25,6 +25,25 @@ const BINARY_APP_TYPES = new Set([
   'font/ttf',
   'font/otf',
 ]);
+
+/**
+ * Wraps a response so that reading its body fails with `ResponseSizeError` once more than
+ * `limit` bytes have arrived; erroring the stream also cancels the download.
+ */
+export function limitResponseSize(response: Response, limit: number): Response {
+  if (!response.body) return response;
+  let received = 0;
+  const counted = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        received += chunk.byteLength;
+        if (received > limit) controller.error(new ResponseSizeError(limit));
+        else controller.enqueue(chunk);
+      },
+    }),
+  );
+  return new Response(counted, response);
+}
 
 export interface ParseBodyOptions {
   responseType?: ResponseBodyType;

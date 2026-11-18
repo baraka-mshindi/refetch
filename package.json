@@ -114,11 +114,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mshindi-labs/refetch.git"
+    "url": "git+https://github.com/baraka-mshindi/refetch.git"
   },
-  "homepage": "https://github.com/mshindi-labs/refetch#readme",
+  "homepage": "https://github.com/baraka-mshindi/refetch#readme",
   "bugs": {
-    "url": "https://github.com/mshindi-labs/refetch/issues"
+    "url": "https://github.com/baraka-mshindi/refetch/issues"
   },
   "publishConfig": {
     "access": "public",

@@ -1,8 +1,8 @@
 # @mshindi-labs/refetch
 
-[![CI](https://github.com/mshindi-labs/refetch/actions/workflows/ci.yml/badge.svg)](https://github.com/mshindi-labs/refetch/actions/workflows/ci.yml)
+[![CI](https://github.com/baraka-mshindi/refetch/actions/workflows/ci.yml/badge.svg)](https://github.com/baraka-mshindi/refetch/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40mshindi-labs%2Frefetch)](https://www.npmjs.com/package/@mshindi-labs/refetch)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mshindi-labs/refetch/badge)](https://scorecard.dev/viewer/?uri=github.com/mshindi-labs/refetch)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/baraka-mshindi/refetch/badge)](https://scorecard.dev/viewer/?uri=github.com/baraka-mshindi/refetch)
 
 A modern, production-grade HTTP client built on native `fetch` — composable, class-free TypeScript, interceptors, retry, streaming, and tree-shakeable exports.
 
